@@ -1,0 +1,22 @@
+<Modal Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo">
+    <p>@Mensaje</p>
+    <div class="botones">
+        <button class="btn peligro" type="button" @onclick="Aceptar">@TextoAceptar</button>
+        <button class="btn sec" type="button" @onclick="() => VisibleChanged.InvokeAsync(false)">Cancelar</button>
+    </div>
+</Modal>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public string Titulo { get; set; } = "Confirmar";
+    [Parameter] public string Mensaje { get; set; } = "";
+    [Parameter] public string TextoAceptar { get; set; } = "Sí, continuar";
+    [Parameter] public EventCallback OnAceptar { get; set; }
+
+    async Task Aceptar()
+    {
+        await VisibleChanged.InvokeAsync(false);
+        await OnAceptar.InvokeAsync();
+    }
+}

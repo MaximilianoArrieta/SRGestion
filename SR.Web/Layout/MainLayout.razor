@@ -1,0 +1,59 @@
+@inherits LayoutComponentBase
+@inject SrAuthStateProvider Auth
+@inject NavigationManager Nav
+
+<header class="top">
+    <div class="wrap">
+        <a class="logo" href="" aria-label="SR, ir al inicio">
+            <img class="img-oscuro" src="img/logo-cabecera.png" alt="SR Distribución de Máquinas Recreativas" />
+            <img class="img-claro" src="img/logo-cabecera-claro.png" alt="SR Distribución de Máquinas Recreativas" />
+        </a>
+
+        <AuthorizeView>
+            <Authorized>
+                <nav aria-label="Principal">
+                    @if (context.User.EsAdmin())
+                    {
+                        <NavLink href="admin" Match="NavLinkMatch.All">Inicio</NavLink>
+                        <NavLink href="admin/clientes">Clientes</NavLink>
+                        <NavLink href="admin/maquinas">Máquinas</NavLink>
+                        <NavLink href="admin/operaciones">Operaciones</NavLink>
+                        <NavLink href="admin/reportes">Reportes</NavLink>
+                    }
+                    else
+                    {
+                        <NavLink href="cliente" Match="NavLinkMatch.All">Mis máquinas</NavLink>
+                        <NavLink href="cliente/cobranzas">Cobranzas</NavLink>
+                        <NavLink href="cliente/solicitudes">Solicitudes</NavLink>
+                    }
+                </nav>
+                <div class="usuario">
+                    <span>@context.User.NombreCompleto()</span>
+                    <BotonTema />
+                    <button class="icono-btn" type="button" @onclick="Salir" title="Cerrar sesión">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+                        <span>Salir</span>
+                    </button>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <span></span>
+                <div class="usuario"><BotonTema /></div>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
+</header>
+
+<main>
+    <div class="wrap">
+        @Body
+    </div>
+</main>
+
+@code {
+    async Task Salir()
+    {
+        await Auth.CerrarSesionAsync();
+        Nav.NavigateTo("login", replace: true);
+    }
+}

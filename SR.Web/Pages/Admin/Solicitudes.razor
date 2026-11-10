@@ -1,0 +1,148 @@
+@page "/admin/solicitudes"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+
+<PageTitle>Solicitudes · SR</PageTitle>
+
+<div class="titulo">
+    <div>
+        <h1>Solicitudes</h1>
+        <p>Pedidos de los comercios: mantenimiento, retiro o máquinas nuevas.</p>
+    </div>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+<Alerta @bind-Mensaje="ok" Ok="true" />
+
+<div class="filtros">
+    <div style="flex:0 1 260px">
+        <label>Estado</label>
+        <select @bind="estado" @bind:after="Cargar">
+            <option value="">Todas</option>
+            @foreach (var e in Enum.GetValues<EstadoSolicitud>())
+            {
+                <option value="@e">@Textos.De(e)</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (lista is null)
+{
+    <Cargando />
+}
+else if (lista.Count == 0)
+{
+    <div class="panel vacio">No hay solicitudes.</div>
+}
+else
+{
+    <div class="tabla-wrap">
+        <table class="tabla">
+            <thead>
+                <tr><th>Fecha</th><th>Comercio</th><th>Pedido</th><th>Máquina</th><th>Observaciones</th><th>Estado</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var s in lista)
+                {
+                    <tr>
+                        <td>@Textos.Fecha(s.FechaSolicitud)</td>
+                        <td>@s.Cliente<br /><small>@s.Localidad</small></td>
+                        <td><strong>@Textos.De(s.TipoSolicitud)</strong></td>
+                        <td>@if (s.IdMaquina is not null) { <a href="admin/maquinas/@s.IdMaquina">@s.Maquina</a> } else { <span>-</span> }</td>
+                        <td>
+                            @s.Observaciones
+                            @if (!string.IsNullOrEmpty(s.Respuesta))
+                            {
+                                <br /><small>Respuesta: @s.Respuesta</small>
+                            }
+                        </td>
+                        <td><Chip Texto="@Textos.De(s.Estado)" Color="@Chip.De(s.Estado)" /></td>
+                        <td class="acc"><button class="btn chico sec" type="button" @onclick="() => Abrir(s)">Responder</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<Modal @bind-Visible="verForm" Titulo="Responder solicitud">
+    @if (seleccionada is not null)
+    {
+        <p>
+            <strong>@seleccionada.Cliente</strong> pidió <strong>@Textos.De(seleccionada.TipoSolicitud).ToLower()</strong>
+            @(seleccionada.Maquina is null ? "" : $"para la máquina {seleccionada.Maquina}").
+        </p>
+        @if (!string.IsNullOrEmpty(seleccionada.Observaciones))
+        {
+            <p><em>"@seleccionada.Observaciones"</em></p>
+        }
+        <EditForm Model="respuesta" OnValidSubmit="Guardar">
+            <div class="form">
+                <div class="campo">
+                    <label>Estado</label>
+                    <InputSelect @bind-Value="respuesta.Estado">
+                        @foreach (var e in Enum.GetValues<EstadoSolicitud>())
+                        {
+                            <option value="@e">@Textos.De(e)</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="campo ancho">
+                    <label>Respuesta para el comercio</label>
+                    <InputTextArea @bind-Value="respuesta.Respuesta" placeholder="Ej.: Pasamos el jueves por la mañana." />
+                </div>
+            </div>
+            <p class="ayuda" style="color:var(--texto-suave);font-size:.9rem">
+                Para cumplir el pedido usá Instalaciones (retiro o máquina nueva) o Mantenimientos.
+                Al registrar ahí el retiro o el mantenimiento, la solicitud se actualiza sola.
+            </p>
+            <div class="botones">
+                <button class="btn" type="submit">Guardar</button>
+                <button class="btn sec" type="button" @onclick="() => verForm = false">Cancelar</button>
+            </div>
+        </EditForm>
+    }
+</Modal>
+
+@code {
+    List<SolicitudDto>? lista;
+    EstadoSolicitud? estado;
+    string? error, ok;
+
+    bool verForm;
+    SolicitudDto? seleccionada;
+    SolicitudResolverDto respuesta = new();
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    async Task Cargar()
+    {
+        try { lista = await Api.SolicitudesAsync(estado); }
+        catch (ApiException ex) { error = ex.Message; lista = new(); }
+    }
+
+    void Abrir(SolicitudDto s)
+    {
+        seleccionada = s;
+        respuesta = new SolicitudResolverDto
+        {
+            Estado = s.Estado == EstadoSolicitud.Pendiente ? EstadoSolicitud.Aprobada : s.Estado,
+            Respuesta = s.Respuesta
+        };
+        verForm = true;
+    }
+
+    async Task Guardar()
+    {
+        if (seleccionada is null) return;
+        try
+        {
+            await Api.ResolverSolicitudAsync(seleccionada.IdSolicitud, respuesta);
+            verForm = false;
+            ok = "Solicitud actualizada.";
+            await Cargar();
+        }
+        catch (ApiException ex) { verForm = false; error = ex.Message; }
+    }
+}

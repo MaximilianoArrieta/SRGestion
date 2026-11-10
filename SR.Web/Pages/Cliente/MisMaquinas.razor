@@ -1,0 +1,113 @@
+@page "/cliente"
+@attribute [Authorize(Roles = Roles.Cliente)]
+@inject SrApi Api
+
+<PageTitle>Mis máquinas · SR</PageTitle>
+
+<div class="titulo">
+    <div>
+        <h1>Máquinas asignadas</h1>
+        <p>Las máquinas de SR instaladas en tu comercio.</p>
+    </div>
+    <div class="acciones">
+        <button class="btn cian" type="button" @onclick="() => Abrir(TipoSolicitud.NuevaMaquina, null)">Solicitar máquina</button>
+    </div>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+<Alerta @bind-Mensaje="ok" Ok="true" />
+
+@if (maquinas is null)
+{
+    <Cargando />
+}
+else if (maquinas.Count == 0)
+{
+    <div class="panel vacio">Todavía no tenés máquinas instaladas. Podés pedir una con "Solicitar máquina".</div>
+}
+else
+{
+    <div class="tabla-wrap">
+        <table class="tabla">
+            <thead><tr><th>ID</th><th>Tipo</th><th>Descripción</th><th>Retiro previsto</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var m in maquinas)
+                {
+                    <tr>
+                        <td><strong>@m.NumeroIdentificacion</strong></td>
+                        <td>@m.Tipo</td>
+                        <td>@m.Descripcion</td>
+                        <td>@Textos.Fecha(m.FechaRetiroProgramada)</td>
+                        <td class="acc">
+                            <button class="btn chico peligro" type="button" @onclick="() => Abrir(TipoSolicitud.Retiro, m)">Solicitar retiro</button>
+                            <button class="btn chico" type="button" @onclick="() => Abrir(TipoSolicitud.Mantenimiento, m)">Solicitar mantenimiento</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<Modal @bind-Visible="verForm" Titulo="@TituloModal">
+    <EditForm Model="nueva" OnValidSubmit="Enviar">
+        @if (maquina is not null)
+        {
+            <p>Máquina <strong>@maquina.NumeroIdentificacion</strong> · @maquina.Tipo</p>
+        }
+        <div class="campo">
+            <label>@(nueva.TipoSolicitud == TipoSolicitud.NuevaMaquina ? "¿Qué máquina necesitás?" : "Contanos qué pasa")</label>
+            <InputTextArea @bind-Value="nueva.Observaciones" placeholder="@Ayuda" />
+        </div>
+        <div class="botones">
+            <button class="btn" type="submit">Enviar solicitud</button>
+            <button class="btn sec" type="button" @onclick="() => verForm = false">Cancelar</button>
+        </div>
+    </EditForm>
+</Modal>
+
+@code {
+    List<MaquinaDto>? maquinas;
+    string? error, ok;
+    bool verForm;
+    MaquinaDto? maquina;
+    SolicitudCrearDto nueva = new();
+
+    string TituloModal => nueva.TipoSolicitud switch
+    {
+        TipoSolicitud.Retiro => "Solicitar retiro",
+        TipoSolicitud.Mantenimiento => "Solicitar mantenimiento",
+        _ => "Solicitar máquina nueva"
+    };
+
+    string Ayuda => nueva.TipoSolicitud switch
+    {
+        TipoSolicitud.Retiro => "Ej.: cerramos por reformas a fin de mes.",
+        TipoSolicitud.Mantenimiento => "Ej.: no acepta fichas desde ayer.",
+        _ => "Ej.: un metegol para el patio."
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { maquinas = await Api.MisMaquinasAsync(); }
+        catch (ApiException ex) { error = ex.Message; maquinas = new(); }
+    }
+
+    void Abrir(TipoSolicitud tipo, MaquinaDto? m)
+    {
+        maquina = m;
+        nueva = new SolicitudCrearDto { TipoSolicitud = tipo, IdMaquina = m?.IdMaquina };
+        verForm = true;
+    }
+
+    async Task Enviar()
+    {
+        try
+        {
+            await Api.CrearSolicitudAsync(nueva);
+            verForm = false;
+            ok = "Solicitud enviada. Podés seguirla en Solicitudes.";
+        }
+        catch (ApiException ex) { verForm = false; error = ex.Message; }
+    }
+}

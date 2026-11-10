@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/Servidor/">
+    <Project Path="SR.Api/SR.Api.csproj" />
+  </Folder>
+  <Folder Name="/Compartido/">
+    <Project Path="SR.Shared/SR.Shared.csproj" />
+  </Folder>
+  <Folder Name="/Aplicaciones/">
+    <Project Path="SR.Web/SR.Web.csproj" />
+    <Project Path="SR.Mobile/SR.Mobile.csproj">
+      <Deploy />
+    </Project>
+  </Folder>
+</Solution>

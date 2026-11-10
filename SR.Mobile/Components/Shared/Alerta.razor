@@ -1,0 +1,13 @@
+@if (!string.IsNullOrEmpty(Mensaje))
+{
+    <div class="alerta @(Ok ? "ok" : "")" role="alert">
+        <span>@Mensaje</span>
+        <button type="button" aria-label="Cerrar" @onclick="() => MensajeChanged.InvokeAsync(null)">✕</button>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Mensaje { get; set; }
+    [Parameter] public EventCallback<string?> MensajeChanged { get; set; }
+    [Parameter] public bool Ok { get; set; }
+}

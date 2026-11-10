@@ -1,0 +1,83 @@
+@page "/cliente/cobranzas"
+@attribute [Authorize(Roles = Roles.Cliente)]
+@inject SrApi Api
+@inject Navegador Navegador
+
+<PageTitle>Historial de cobranzas · SR</PageTitle>
+
+<div class="titulo">
+    <div>
+        <h1>Historial de cobranzas</h1>
+        <p>Lo recaudado en tus máquinas y lo que se te pagó.</p>
+    </div>
+    <div class="acciones">
+        <button class="btn sec" type="button" @onclick="ExportarPdf">Exportar PDF</button>
+    </div>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+
+<div class="filtros">
+    <div><label>Desde</label><input type="date" @bind="desde" /></div>
+    <div><label>Hasta</label><input type="date" @bind="hasta" /></div>
+    <button class="btn sec" type="button" @onclick="Cargar">Filtrar</button>
+</div>
+
+@if (lista is null)
+{
+    <Cargando />
+}
+else if (lista.Count == 0)
+{
+    <div class="panel vacio">No hay cobranzas en ese período.</div>
+}
+else
+{
+    <div class="tabla-wrap">
+        <table class="tabla">
+            <thead><tr><th>Fecha</th><th>Máquina</th><th class="num">Recaudado</th><th class="num">Pagado al comercio</th></tr></thead>
+            <tbody>
+                @foreach (var c in lista)
+                {
+                    <tr>
+                        <td>@Textos.Fecha(c.FechaCobro)</td>
+                        <td>@c.Maquina<br /><small>@c.Tipo</small></td>
+                        <td class="num">@Textos.Plata(c.MontoRecaudado)</td>
+                        <td class="num">@Textos.Plata(c.MontoComercio)</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="2">Total</td>
+                    <td class="num">@Textos.Plata(lista.Sum(c => c.MontoRecaudado))</td>
+                    <td class="num">@Textos.Plata(lista.Sum(c => c.MontoComercio))</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+}
+
+@code {
+    List<CobranzaDto>? lista;
+    DateTime? desde, hasta;
+    string? error;
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    async Task Cargar()
+    {
+        try { lista = await Api.MisCobranzasAsync(desde, hasta); }
+        catch (ApiException ex) { error = ex.Message; lista = new(); }
+    }
+
+    async Task ExportarPdf()
+    {
+        try
+        {
+            var pdf = await Api.ReportePdfAsync("mis-cobranzas", desde, hasta);
+            await Navegador.DescargarAsync($"mis-cobranzas-{DateTime.Now:yyyyMMdd}.pdf", pdf);
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+}

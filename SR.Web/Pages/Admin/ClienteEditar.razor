@@ -1,0 +1,195 @@
+@page "/admin/clientes/nuevo"
+@page "/admin/clientes/{Id:int}"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+@inject NavigationManager Nav
+
+<PageTitle>@(Id is null ? "Nuevo cliente" : "Editar cliente") · SR</PageTitle>
+
+<div class="titulo">
+    <div>
+        <h1>@(Id is null ? "Nuevo cliente" : modelo.RazonSocial)</h1>
+        <p>@(Id is null ? "Datos del comercio donde se instalarán máquinas." : "Datos del comercio.")</p>
+    </div>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+<Alerta @bind-Mensaje="ok" Ok="true" />
+
+@if (provincias is null)
+{
+    <Cargando />
+}
+else
+{
+    <div class="panel">
+        <EditForm Model="modelo" OnValidSubmit="Guardar">
+            <DataAnnotationsValidator />
+            <div class="form">
+                <div class="campo ancho">
+                    <label>Nombre del comercio (razón social)</label>
+                    <InputText @bind-Value="modelo.RazonSocial" />
+                    <ValidationMessage For="() => modelo.RazonSocial" />
+                </div>
+                <div class="campo">
+                    <label>Responsable</label>
+                    <InputText @bind-Value="modelo.Responsable" />
+                    <ValidationMessage For="() => modelo.Responsable" />
+                </div>
+                <div class="campo">
+                    <label>Teléfono</label>
+                    <InputText @bind-Value="modelo.Telefono" />
+                    <ValidationMessage For="() => modelo.Telefono" />
+                </div>
+                <div class="campo">
+                    <label>CUIT / datos fiscales</label>
+                    <InputText @bind-Value="modelo.DatosFiscales" />
+                </div>
+                <div class="campo ancho">
+                    <label>Dirección</label>
+                    <InputText @bind-Value="modelo.Direccion" />
+                    <ValidationMessage For="() => modelo.Direccion" />
+                </div>
+                <div class="campo">
+                    <label>Provincia</label>
+                    <select @bind="idProvincia" @bind:after="CambioProvincia">
+                        <option value="0">Elegí una provincia</option>
+                        @foreach (var p in provincias)
+                        {
+                            <option value="@p.IdProvincia">@p.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="campo">
+                    <label>Localidad</label>
+                    <InputSelect @bind-Value="modelo.IdLocalidad">
+                        <option value="0">Elegí una localidad</option>
+                        @foreach (var l in Localidades)
+                        {
+                            <option value="@l.IdLocalidad">@l.Nombre</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => modelo.IdLocalidad" />
+                </div>
+            </div>
+            <div class="botones">
+                <button class="btn" type="submit" disabled="@guardando">Guardar</button>
+                <a class="btn sec" href="admin/clientes">Volver</a>
+            </div>
+        </EditForm>
+    </div>
+
+    @if (Id is not null)
+    {
+        <div class="panel">
+            <h2>Acceso al sistema</h2>
+            <p>
+                @if (usuarioActual is null)
+                {
+                    <span>Este comercio todavía no tiene usuario. Creale uno para que pueda ver sus máquinas, sus cobranzas y hacer solicitudes.</span>
+                }
+                else
+                {
+                    <span>Usuario actual: <strong>@usuarioActual</strong>. Si cargás una contraseña nueva, se reemplaza la anterior.</span>
+                }
+            </p>
+            <EditForm Model="usuario" OnValidSubmit="GuardarUsuario">
+                <DataAnnotationsValidator />
+                <div class="form">
+                    <div class="campo">
+                        <label>Nombre de usuario</label>
+                        <InputText @bind-Value="usuario.NombreUsuario" autocomplete="off" />
+                        <ValidationMessage For="() => usuario.NombreUsuario" />
+                    </div>
+                    <div class="campo">
+                        <label>Contraseña</label>
+                        <InputText type="password" @bind-Value="usuario.Password" autocomplete="new-password" />
+                        <ValidationMessage For="() => usuario.Password" />
+                    </div>
+                    <div class="campo">
+                        <label>Email (opcional)</label>
+                        <InputText @bind-Value="usuario.Email" />
+                        <ValidationMessage For="() => usuario.Email" />
+                    </div>
+                </div>
+                <div class="botones">
+                    <button class="btn cian" type="submit">@(usuarioActual is null ? "Crear usuario" : "Actualizar usuario")</button>
+                </div>
+            </EditForm>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    ClienteGuardarDto modelo = new();
+    UsuarioClienteDto usuario = new();
+    List<ProvinciaDto>? provincias;
+    int idProvincia;
+    string? usuarioActual;
+    string? error, ok;
+    bool guardando;
+
+    IEnumerable<LocalidadDto> Localidades =>
+        provincias?.FirstOrDefault(p => p.IdProvincia == idProvincia)?.Localidades ?? Enumerable.Empty<LocalidadDto>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            provincias = await Api.ProvinciasAsync();
+            if (Id is not null)
+            {
+                var c = await Api.ClienteAsync(Id.Value);
+                modelo = new ClienteGuardarDto
+                {
+                    RazonSocial = c.RazonSocial, Responsable = c.Responsable, Telefono = c.Telefono,
+                    Direccion = c.Direccion, DatosFiscales = c.DatosFiscales, IdLocalidad = c.IdLocalidad
+                };
+                idProvincia = provincias.FirstOrDefault(p => p.Localidades.Any(l => l.IdLocalidad == c.IdLocalidad))?.IdProvincia ?? 0;
+                usuarioActual = c.UsuarioAcceso;
+                usuario.NombreUsuario = c.UsuarioAcceso ?? "";
+            }
+        }
+        catch (ApiException ex) { error = ex.Message; provincias ??= new(); }
+    }
+
+    void CambioProvincia() => modelo.IdLocalidad = 0;
+
+    async Task Guardar()
+    {
+        guardando = true;
+        error = null;
+        try
+        {
+            if (Id is null)
+            {
+                var creado = await Api.CrearClienteAsync(modelo);
+                Nav.NavigateTo($"admin/clientes/{creado.IdCliente}");
+                ok = "Cliente creado. Ahora podés crearle un usuario de acceso.";
+            }
+            else
+            {
+                await Api.EditarClienteAsync(Id.Value, modelo);
+                ok = "Cambios guardados.";
+            }
+        }
+        catch (ApiException ex) { error = ex.Message; }
+        finally { guardando = false; }
+    }
+
+    async Task GuardarUsuario()
+    {
+        if (Id is null) return;
+        error = null;
+        try
+        {
+            await Api.CrearUsuarioClienteAsync(Id.Value, usuario);
+            usuarioActual = usuario.NombreUsuario.Trim().ToLower();
+            usuario.Password = "";
+            ok = "Usuario guardado. Pasale los datos al comercio para que pueda ingresar.";
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+}

@@ -1,0 +1,53 @@
+@page "/login"
+@layout LoginLayout
+@inject SrAuthStateProvider Auth
+@inject NavigationManager Nav
+
+<div class="login">
+    <div class="cabeza">
+        <img src="img/logo.png" alt="SR Distribución de Máquinas Recreativas" />
+        <p>Sistema de gestión de máquinas recreativas</p>
+    </div>
+    <div class="cuerpo">
+        <h1>Inicio de sesión</h1>
+        <Alerta @bind-Mensaje="error" />
+
+        <EditForm Model="modelo" OnValidSubmit="Ingresar">
+            <DataAnnotationsValidator />
+            <div class="campo">
+                <label for="usuario">Usuario</label>
+                <InputText id="usuario" @bind-Value="modelo.Usuario" autocomplete="username" autocapitalize="none" />
+                <ValidationMessage For="() => modelo.Usuario" />
+            </div>
+            <div class="campo">
+                <label for="clave">Contraseña</label>
+                <InputText id="clave" type="password" @bind-Value="modelo.Password" autocomplete="current-password" />
+                <ValidationMessage For="() => modelo.Password" />
+            </div>
+            <div class="botones">
+                <button class="btn" type="submit" disabled="@enviando">@(enviando ? "Ingresando..." : "Ingresar")</button>
+            </div>
+        </EditForm>
+
+        <div class="pie"><BotonTema /></div>
+    </div>
+</div>
+
+@code {
+    readonly LoginRequest modelo = new();
+    string? error;
+    bool enviando;
+
+    async Task Ingresar()
+    {
+        enviando = true;
+        error = null;
+        try
+        {
+            await Auth.IniciarSesionAsync(modelo);
+            Nav.NavigateTo("", replace: true);
+        }
+        catch (ApiException ex) { error = ex.Message; }
+        finally { enviando = false; }
+    }
+}

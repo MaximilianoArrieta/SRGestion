@@ -1,0 +1,137 @@
+@page "/admin/maquinas"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+
+<PageTitle>Máquinas · SR</PageTitle>
+
+<div class="titulo">
+    <div>
+        <h1>Máquinas</h1>
+        <p>Todas las máquinas de SR, dónde están y en qué estado.</p>
+    </div>
+    <div class="acciones">
+        <a class="btn" href="admin/maquinas/nueva">+ Nueva máquina</a>
+    </div>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+<Alerta @bind-Mensaje="ok" Ok="true" />
+
+<div class="filtros">
+    <div>
+        <label for="buscar">Buscar</label>
+        <input id="buscar" placeholder="Número, descripción o comercio" @bind="buscar" @bind:event="oninput" @onkeyup="Tecla" />
+    </div>
+    <div>
+        <label for="estado">Estado</label>
+        <select id="estado" @bind="estado" @bind:after="Cargar">
+            <option value="">Todos</option>
+            @foreach (var e in Enum.GetValues<EstadoMaquina>())
+            {
+                <option value="@e">@Textos.De(e)</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label for="tipo">Tipo</label>
+        <select id="tipo" @bind="idTipo" @bind:after="Cargar">
+            <option value="0">Todos</option>
+            @foreach (var t in tipos)
+            {
+                <option value="@t.IdTipoMaquina">@t.Descripcion</option>
+            }
+        </select>
+    </div>
+    <button class="btn sec" type="button" @onclick="Cargar">Buscar</button>
+</div>
+
+@if (maquinas is null)
+{
+    <Cargando />
+}
+else if (maquinas.Count == 0)
+{
+    <div class="panel vacio">No se encontraron máquinas.</div>
+}
+else
+{
+    <div class="tabla-wrap">
+        <table class="tabla">
+            <thead>
+                <tr><th>Número</th><th>Tipo</th><th>Descripción</th><th>Estado</th><th>Ubicación</th><th>Retiro previsto</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var m in maquinas)
+                {
+                    <tr>
+                        <td><a href="admin/maquinas/@m.IdMaquina"><strong>@m.NumeroIdentificacion</strong></a></td>
+                        <td>@m.Tipo</td>
+                        <td>@m.Descripcion</td>
+                        <td><Chip Texto="@Textos.De(m.Estado)" Color="@Chip.De(m.Estado)" /></td>
+                        <td>@(m.ClienteActual is null ? "Depósito" : $"{m.ClienteActual} ({m.LocalidadActual})")</td>
+                        <td>@Textos.Fecha(m.FechaRetiroProgramada)</td>
+                        <td class="acc">
+                            <a class="btn chico sec" href="admin/maquinas/@m.IdMaquina">Ver</a>
+                            <a class="btn chico sec" href="admin/maquinas/@m.IdMaquina/editar">Editar</a>
+                            @if (m.Estado is EstadoMaquina.Disponible or EstadoMaquina.EnReparacion)
+                            {
+                                <button class="btn chico peligro" type="button" @onclick="() => PedirBaja(m)">Baja</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <p style="margin-top:.8rem;color:var(--texto-suave)">@maquinas.Count máquinas</p>
+}
+
+<Confirmar @bind-Visible="confirmar" Titulo="Dar de baja"
+           Mensaje="@($"¿Dar de baja la máquina {seleccionada?.NumeroIdentificacion}? Queda fuera de servicio, pero se conserva su historial.")"
+           TextoAceptar="Dar de baja" OnAceptar="Baja" />
+
+@code {
+    List<MaquinaDto>? maquinas;
+    List<TipoMaquinaDto> tipos = new();
+    string buscar = "";
+    EstadoMaquina? estado;
+    int idTipo;
+    string? error, ok;
+    bool confirmar;
+    MaquinaDto? seleccionada;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { tipos = await Api.TiposMaquinaAsync(); } catch (ApiException ex) { error = ex.Message; }
+        await Cargar();
+    }
+
+    async Task Cargar()
+    {
+        try { maquinas = await Api.MaquinasAsync(buscar, estado, idTipo == 0 ? null : idTipo); }
+        catch (ApiException ex) { error = ex.Message; maquinas = new(); }
+    }
+
+    async Task Tecla(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Cargar();
+    }
+
+    void PedirBaja(MaquinaDto m)
+    {
+        seleccionada = m;
+        confirmar = true;
+    }
+
+    async Task Baja()
+    {
+        if (seleccionada is null) return;
+        try
+        {
+            await Api.BajaMaquinaAsync(seleccionada.IdMaquina);
+            ok = $"La máquina {seleccionada.NumeroIdentificacion} quedó de baja.";
+            await Cargar();
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+}

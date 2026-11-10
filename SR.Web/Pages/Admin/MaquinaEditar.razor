@@ -1,0 +1,124 @@
+@page "/admin/maquinas/nueva"
+@page "/admin/maquinas/{Id:int}/editar"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+@inject NavigationManager Nav
+
+<PageTitle>@(Id is null ? "Nueva máquina" : "Editar máquina") · SR</PageTitle>
+
+<div class="titulo">
+    <div>
+        <h1>@(Id is null ? "Nueva máquina" : $"Editar {modelo.NumeroIdentificacion}")</h1>
+        <p>Cada máquina tiene un número único que identifica todo su historial.</p>
+    </div>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+
+@if (tipos is null)
+{
+    <Cargando />
+}
+else
+{
+    <div class="panel">
+        <EditForm Model="modelo" OnValidSubmit="Guardar">
+            <DataAnnotationsValidator />
+            <div class="form">
+                <div class="campo">
+                    <label>Número de identificación</label>
+                    <InputText @bind-Value="modelo.NumeroIdentificacion" placeholder="Ej.: POOL-004" />
+                    <ValidationMessage For="() => modelo.NumeroIdentificacion" />
+                </div>
+                <div class="campo">
+                    <label>Tipo</label>
+                    <InputSelect @bind-Value="modelo.IdTipoMaquina">
+                        <option value="0">Elegí el tipo</option>
+                        @foreach (var t in tipos)
+                        {
+                            <option value="@t.IdTipoMaquina">@t.Descripcion</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => modelo.IdTipoMaquina" />
+                </div>
+                <div class="campo">
+                    <label>Fecha de alta</label>
+                    <InputDate @bind-Value="modelo.FechaAlta" />
+                </div>
+                <div class="campo">
+                    <label>Estado</label>
+                    @if (instalada)
+                    {
+                        <input value="Instalada" disabled />
+                        <div class="ayuda">Para cambiarlo, registrá primero el retiro.</div>
+                    }
+                    else
+                    {
+                        <InputSelect @bind-Value="modelo.Estado">
+                            <option value="@EstadoMaquina.Disponible">Disponible</option>
+                            <option value="@EstadoMaquina.EnReparacion">En reparación</option>
+                            <option value="@EstadoMaquina.Baja">De baja</option>
+                        </InputSelect>
+                    }
+                </div>
+                <div class="campo ancho">
+                    <label>Descripción</label>
+                    <InputTextArea @bind-Value="modelo.Descripcion" placeholder="Marca, modelo, detalles..." />
+                </div>
+            </div>
+            <div class="botones">
+                <button class="btn" type="submit" disabled="@guardando">Guardar</button>
+                <a class="btn sec" href="@(Id is null ? "admin/maquinas" : $"admin/maquinas/{Id}")">Volver</a>
+            </div>
+        </EditForm>
+    </div>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    MaquinaGuardarDto modelo = new();
+    List<TipoMaquinaDto>? tipos;
+    bool instalada, guardando;
+    string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            tipos = await Api.TiposMaquinaAsync();
+            if (Id is not null)
+            {
+                var m = (await Api.MaquinaAsync(Id.Value)).Maquina;
+                modelo = new MaquinaGuardarDto
+                {
+                    NumeroIdentificacion = m.NumeroIdentificacion, Descripcion = m.Descripcion,
+                    IdTipoMaquina = m.IdTipoMaquina, FechaAlta = m.FechaAlta, Estado = m.Estado
+                };
+                instalada = m.Estado == EstadoMaquina.Instalada;
+            }
+        }
+        catch (ApiException ex) { error = ex.Message; tipos ??= new(); }
+    }
+
+    async Task Guardar()
+    {
+        guardando = true;
+        error = null;
+        try
+        {
+            if (Id is null)
+            {
+                var creada = await Api.CrearMaquinaAsync(modelo);
+                Nav.NavigateTo($"admin/maquinas/{creada.IdMaquina}");
+            }
+            else
+            {
+                await Api.EditarMaquinaAsync(Id.Value, modelo);
+                Nav.NavigateTo($"admin/maquinas/{Id}");
+            }
+        }
+        catch (ApiException ex) { error = ex.Message; }
+        finally { guardando = false; }
+    }
+}

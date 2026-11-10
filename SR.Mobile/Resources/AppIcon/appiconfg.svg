@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Las tres franjas del logo de SR (celeste, naranja y rojo) -->
+<svg width="456" height="456" viewBox="0 0 456 456" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="168,150 348,150 318,196 138,196" fill="#04B9F8"/>
+  <polygon points="148,205 328,205 298,251 118,251" fill="#FE9E10"/>
+  <polygon points="128,260 308,260 278,306 98,306" fill="#F80343"/>
+</svg>

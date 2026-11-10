@@ -1,0 +1,190 @@
+@page "/admin/reportes"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+@inject Navegador Navegador
+
+<PageTitle>Reportes · SR</PageTitle>
+
+<div class="titulo">
+    <div>
+        <h1>Reportes</h1>
+        <p>Todos se pueden exportar en PDF.</p>
+    </div>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+
+<div class="filtros">
+    <div>
+        <label>Desde</label>
+        <input type="date" @bind="desde" />
+    </div>
+    <div>
+        <label>Hasta</label>
+        <input type="date" @bind="hasta" />
+    </div>
+    <button class="btn sec" type="button" @onclick="Cargar">Aplicar fechas</button>
+</div>
+<p style="margin-top:-.4rem;color:var(--texto-suave);font-size:.9rem">Las fechas se aplican a recaudación, historial de cobranzas y mantenimientos.</p>
+
+@if (recaudacion is null)
+{
+    <Cargando />
+}
+else
+{
+    <div class="panel">
+        <div class="titulo" style="margin:0 0 1rem">
+            <h2 style="margin:0">Recaudación por período</h2>
+            <button class="btn chico" type="button" @onclick='() => Pdf("recaudacion")'>PDF</button>
+        </div>
+        @if (recaudacion.Count == 0)
+        {
+            <div class="vacio">Sin cobranzas en el período.</div>
+        }
+        else
+        {
+            var max = recaudacion.Max(r => r.Recaudado);
+            <div class="barras" role="img" aria-label="Recaudación por mes">
+                @foreach (var r in recaudacion)
+                {
+                    <div class="barra" title="@r.Periodo: @Textos.Plata(r.Recaudado) en @r.Cobranzas cobros">
+                        <span class="mes">@r.Periodo</span>
+                        <span class="pista"><span class="relleno" style="width:@Ancho(r.Recaudado, max)"></span></span>
+                        <span class="monto">@Textos.Plata(r.Recaudado)</span>
+                    </div>
+                }
+            </div>
+            <div class="tabla-wrap" style="margin-top:1rem">
+                <table class="tabla">
+                    <thead><tr><th>Mes</th><th class="num">Cobros</th><th class="num">Recaudado</th><th class="num">Comercios</th><th class="num">SR</th></tr></thead>
+                    <tbody>
+                        @foreach (var r in recaudacion)
+                        {
+                            <tr><td>@r.Periodo</td><td class="num">@r.Cobranzas</td><td class="num">@Textos.Plata(r.Recaudado)</td><td class="num">@Textos.Plata(r.Comercios)</td><td class="num">@Textos.Plata(r.Empresa)</td></tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr><td>Total</td><td class="num">@recaudacion.Sum(r => r.Cobranzas)</td><td class="num">@Textos.Plata(recaudacion.Sum(r => r.Recaudado))</td><td class="num">@Textos.Plata(recaudacion.Sum(r => r.Comercios))</td><td class="num">@Textos.Plata(recaudacion.Sum(r => r.Empresa))</td></tr>
+                    </tfoot>
+                </table>
+            </div>
+        }
+    </div>
+
+    <div class="dos-col">
+        <div class="panel">
+            <div class="titulo" style="margin:0 0 1rem">
+                <h2 style="margin:0">Máquinas por localidad</h2>
+                <button class="btn chico" type="button" @onclick='() => Pdf("maquinas-localidad")'>PDF</button>
+            </div>
+            <div class="tabla-wrap">
+                <table class="tabla">
+                    <thead><tr><th>Localidad</th><th class="num">Pool</th><th class="num">Metegol</th><th class="num">Arcade</th><th class="num">Otros</th><th class="num">Total</th></tr></thead>
+                    <tbody>
+                        @foreach (var l in porLocalidad!)
+                        {
+                            <tr><td>@l.Localidad<br /><small>@l.Provincia</small></td><td class="num">@l.Pool</td><td class="num">@l.Metegol</td><td class="num">@l.Arcade</td><td class="num">@l.Otros</td><td class="num"><strong>@l.Total</strong></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="titulo" style="margin:0 0 1rem">
+                <h2 style="margin:0">Máquinas activas e inactivas</h2>
+                <button class="btn chico" type="button" @onclick='() => Pdf("maquinas-estado")'>PDF</button>
+            </div>
+            <div class="kpis" style="margin:0">
+                @foreach (var e in porEstado!)
+                {
+                    <div class="kpi"><span class="etiqueta">@e.Estado</span><span class="valor">@e.Cantidad</span></div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Otros reportes en PDF</h2>
+        <div class="botones" style="margin-top:0">
+            <button class="btn sec" type="button" @onclick='() => Pdf("cobranzas")'>Historial de cobranzas</button>
+            <button class="btn sec" type="button" @onclick='() => Pdf("mantenimientos")'>Historial de mantenimientos</button>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Últimos reportes generados</h2>
+        @if (generados.Count == 0)
+        {
+            <div class="vacio">Todavía no se generó ningún PDF.</div>
+        }
+        else
+        {
+            <div class="tabla-wrap">
+                <table class="tabla">
+                    <thead><tr><th>Fecha</th><th>Reporte</th><th>Filtros</th><th>Generó</th></tr></thead>
+                    <tbody>
+                        @foreach (var g in generados)
+                        {
+                            <tr><td>@g.FechaGeneracion.ToString("dd/MM/yyyy HH:mm")</td><td>@g.TipoReporte</td><td>@g.Filtros</td><td>@g.Usuario</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .barras{display:grid;gap:.5rem}
+    .barra{display:grid;grid-template-columns:80px 1fr 130px;align-items:center;gap:.8rem;font-size:.95rem}
+    .barra .pista{height:14px;background:var(--panel-2);border-radius:0 4px 4px 0;overflow:hidden}
+    .barra .relleno{display:block;height:100%;background:var(--naranja);border-radius:0 4px 4px 0;transition:width .4s}
+    .barra:hover .relleno{background:var(--cian)}
+    .barra .monto{text-align:right;font-variant-numeric:tabular-nums}
+    @@media (max-width:520px){.barra{grid-template-columns:62px 1fr 100px;font-size:.85rem}}
+</style>
+
+@code {
+    List<RecaudacionPeriodoDto>? recaudacion;
+    List<MaquinasLocalidadDto>? porLocalidad;
+    List<MaquinasEstadoDto>? porEstado;
+    List<ReporteGeneradoDto> generados = new();
+    DateTime? desde = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-5);
+    DateTime? hasta;
+    string? error;
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    async Task Cargar()
+    {
+        try
+        {
+            porLocalidad = await Api.ReporteMaquinasLocalidadAsync();
+            porEstado = await Api.ReporteMaquinasEstadoAsync();
+            recaudacion = await Api.ReporteRecaudacionAsync(desde, hasta);
+            generados = await Api.ReportesGeneradosAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            porLocalidad ??= new(); porEstado ??= new(); recaudacion ??= new();
+        }
+    }
+
+    static string Ancho(decimal valor, decimal max) =>
+        max <= 0 ? "0%" : (valor / max * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%";
+
+    async Task Pdf(string reporte)
+    {
+        error = null;
+        try
+        {
+            var bytes = await Api.ReportePdfAsync(reporte, desde, hasta);
+            await Navegador.DescargarAsync($"{reporte}-{DateTime.Now:yyyyMMdd}.pdf", bytes);
+            generados = await Api.ReportesGeneradosAsync();
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+}

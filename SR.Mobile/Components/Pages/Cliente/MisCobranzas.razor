@@ -1,0 +1,71 @@
+@page "/cliente/cobranzas"
+@attribute [Authorize(Roles = Roles.Cliente)]
+@inject SrApi Api
+@inject Archivos Archivos
+
+<div class="titulo">
+    <h1>Historial de cobranzas</h1>
+    <p>Lo recaudado en tus máquinas.</p>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+
+<div class="dos">
+    <div class="campo"><label>Desde</label><input type="date" @bind="desde" @bind:after="Cargar" /></div>
+    <div class="campo"><label>Hasta</label><input type="date" @bind="hasta" @bind:after="Cargar" /></div>
+</div>
+
+@if (lista is null)
+{
+    <Cargando />
+}
+else
+{
+    <div class="total">
+        <span>Pagado al comercio</span>
+        <span class="monto">@Textos.Plata(lista.Sum(c => c.MontoComercio))</span>
+    </div>
+    @if (lista.Count == 0)
+    {
+        <div class="vacio">No hay cobranzas en ese período.</div>
+    }
+    <div class="lista">
+        @foreach (var c in lista)
+        {
+            <div class="item naranja">
+                <div class="cab">
+                    <strong>@Textos.Fecha(c.FechaCobro)</strong>
+                    <span class="monto">@Textos.Plata(c.MontoComercio)</span>
+                </div>
+                <div class="linea">@c.Maquina · @c.Tipo · recaudado @Textos.Plata(c.MontoRecaudado)</div>
+            </div>
+        }
+    </div>
+    <div class="botones">
+        <button class="btn sec" type="button" @onclick="ExportarPdf">Exportar PDF</button>
+    </div>
+}
+
+@code {
+    List<CobranzaDto>? lista;
+    DateTime? desde, hasta;
+    string? error;
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    async Task Cargar()
+    {
+        try { lista = await Api.MisCobranzasAsync(desde, hasta); }
+        catch (ApiException ex) { error = ex.Message; lista = new(); }
+    }
+
+    async Task ExportarPdf()
+    {
+        try
+        {
+            var pdf = await Api.ReportePdfAsync("mis-cobranzas", desde, hasta);
+            await Archivos.AbrirPdfAsync($"mis-cobranzas-{DateTime.Now:yyyyMMdd}.pdf", pdf);
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+}

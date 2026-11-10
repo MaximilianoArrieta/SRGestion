@@ -1,0 +1,26 @@
+@page "/admin/operaciones"
+@attribute [Authorize(Roles = Roles.Admin)]
+
+<div class="titulo">
+    <h1>Operaciones</h1>
+    <p>El trabajo de todos los días.</p>
+</div>
+
+<div class="lista">
+    <a class="item" href="admin/instalaciones">
+        <div class="cab"><strong>Instalaciones</strong><span>›</span></div>
+        <div class="linea">Instalar máquinas y registrar retiros.</div>
+    </a>
+    <a class="item naranja" href="admin/cobranzas">
+        <div class="cab"><strong>Cobranzas</strong><span>›</span></div>
+        <div class="linea">Registrar lo recaudado y ver el historial.</div>
+    </a>
+    <a class="item rojo" href="admin/mantenimientos">
+        <div class="cab"><strong>Mantenimientos</strong><span>›</span></div>
+        <div class="linea">Reparaciones y mantenimientos preventivos.</div>
+    </a>
+    <a class="item gris" href="admin/solicitudes">
+        <div class="cab"><strong>Solicitudes</strong><span>›</span></div>
+        <div class="linea">Pedidos de los comercios.</div>
+    </a>
+</div>

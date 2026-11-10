@@ -1,0 +1,128 @@
+@page "/admin/maquinas/{Id:int}"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+
+<PageTitle>Máquina · SR</PageTitle>
+
+<Alerta @bind-Mensaje="error" />
+
+@if (d is null)
+{
+    <Cargando />
+}
+else
+{
+    var m = d.Maquina;
+    <div class="titulo">
+        <div>
+            <h1>@m.NumeroIdentificacion</h1>
+            <p>@m.Tipo · @m.Descripcion</p>
+        </div>
+        <div class="acciones">
+            <a class="btn sec" href="admin/maquinas/@Id/editar">Editar</a>
+            <a class="btn sec" href="admin/maquinas">Volver</a>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="ficha">
+            <div><span>Estado</span><Chip Texto="@Textos.De(m.Estado)" Color="@Chip.De(m.Estado)" /></div>
+            <div><span>Ubicación actual</span><strong>@(m.ClienteActual ?? "Depósito")</strong></div>
+            <div><span>Localidad</span><strong>@(m.LocalidadActual ?? "-")</strong></div>
+            <div><span>Alta</span><strong>@Textos.Fecha(m.FechaAlta)</strong></div>
+            <div><span>Total recaudado</span><strong>@Textos.Plata(d.TotalRecaudado)</strong></div>
+            <div><span>Gastado en mantenimiento</span><strong>@Textos.Plata(d.TotalMantenimiento)</strong></div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Historial de ubicaciones</h2>
+        @if (d.Instalaciones.Count == 0)
+        {
+            <div class="vacio">Nunca fue instalada.</div>
+        }
+        else
+        {
+            <div class="tabla-wrap">
+                <table class="tabla">
+                    <thead><tr><th>Comercio</th><th>Localidad</th><th>Instalada</th><th>Retiro previsto</th><th>Retirada</th><th>Estado</th></tr></thead>
+                    <tbody>
+                        @foreach (var i in d.Instalaciones)
+                        {
+                            <tr>
+                                <td>@i.Cliente</td>
+                                <td>@i.Localidad</td>
+                                <td>@Textos.Fecha(i.FechaInstalacion)</td>
+                                <td>@Textos.Fecha(i.FechaRetiroProgramada)</td>
+                                <td>@Textos.Fecha(i.FechaRetiroReal)</td>
+                                <td><Chip Texto="@Textos.De(i.Estado)" Color="@Chip.De(i.Estado)" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <div class="dos-col">
+        <div class="panel">
+            <h2>Cobranzas</h2>
+            @if (d.Cobranzas.Count == 0)
+            {
+                <div class="vacio">Sin cobranzas registradas.</div>
+            }
+            else
+            {
+                <div class="tabla-wrap">
+                    <table class="tabla">
+                        <thead><tr><th>Fecha</th><th>Comercio</th><th class="num">Recaudado</th></tr></thead>
+                        <tbody>
+                            @foreach (var c in d.Cobranzas)
+                            {
+                                <tr><td>@Textos.Fecha(c.FechaCobro)</td><td>@c.Cliente</td><td class="num">@Textos.Plata(c.MontoRecaudado)</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+        <div class="panel">
+            <h2>Mantenimientos</h2>
+            @if (d.Mantenimientos.Count == 0)
+            {
+                <div class="vacio">Sin mantenimientos registrados.</div>
+            }
+            else
+            {
+                <div class="tabla-wrap">
+                    <table class="tabla">
+                        <thead><tr><th>Fecha</th><th>Tarea</th><th>Estado</th><th class="num">Costo</th></tr></thead>
+                        <tbody>
+                            @foreach (var x in d.Mantenimientos)
+                            {
+                                <tr>
+                                    <td>@Textos.Fecha(x.Fecha)</td>
+                                    <td>@x.Descripcion <br /><small>@Textos.De(x.TipoMantenimiento)</small></td>
+                                    <td><Chip Texto="@Textos.De(x.Estado)" Color="@Chip.De(x.Estado)" /></td>
+                                    <td class="num">@Textos.Plata(x.Costo)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    MaquinaDetalleDto? d;
+    string? error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try { d = await Api.MaquinaAsync(Id); }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+}

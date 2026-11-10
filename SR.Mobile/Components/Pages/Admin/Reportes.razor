@@ -1,0 +1,132 @@
+@page "/admin/reportes"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+@inject Archivos Archivos
+
+<div class="titulo">
+    <h1>Reportes</h1>
+    <p>Todos se pueden exportar en PDF.</p>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+
+<div class="dos">
+    <div class="campo"><label>Desde</label><input type="date" @bind="desde" @bind:after="Cargar" /></div>
+    <div class="campo"><label>Hasta</label><input type="date" @bind="hasta" @bind:after="Cargar" /></div>
+</div>
+
+@if (recaudacion is null)
+{
+    <Cargando />
+}
+else
+{
+    <h2>Recaudación por período</h2>
+    <div class="panel">
+        @if (recaudacion.Count == 0)
+        {
+            <div class="ayuda">Sin cobranzas en el período.</div>
+        }
+        else
+        {
+            var max = recaudacion.Max(r => r.Recaudado);
+            @foreach (var r in recaudacion)
+            {
+                <div class="barra">
+                    <span>@r.Periodo</span>
+                    <span class="pista"><span class="relleno" style="width:@Ancho(r.Recaudado, max)"></span></span>
+                    <span class="monto">@Textos.Plata(r.Recaudado)</span>
+                </div>
+            }
+            <div class="total" style="margin:.8rem 0 0">
+                <span>Total</span><span class="monto">@Textos.Plata(recaudacion.Sum(r => r.Recaudado))</span>
+            </div>
+        }
+        <div class="fila-btn"><button class="btn chico" type="button" @onclick='() => Pdf("recaudacion")'>PDF</button></div>
+    </div>
+
+    <h2>Máquinas por localidad</h2>
+    <div class="lista">
+        @foreach (var l in porLocalidad!)
+        {
+            <div class="item">
+                <div class="cab"><strong>@l.Localidad</strong><span class="monto">@l.Total</span></div>
+                <div class="linea">@l.Provincia · Pool @l.Pool · Metegol @l.Metegol · Arcade @l.Arcade · Otros @l.Otros</div>
+            </div>
+        }
+    </div>
+    <div class="fila-btn"><button class="btn chico" type="button" @onclick='() => Pdf("maquinas-localidad")'>PDF</button></div>
+
+    <h2>Máquinas activas e inactivas</h2>
+    <div class="kpis">
+        @foreach (var e in porEstado!)
+        {
+            <div class="kpi"><span class="etiqueta">@e.Estado</span><span class="valor">@e.Cantidad</span></div>
+        }
+    </div>
+    <div class="fila-btn"><button class="btn chico" type="button" @onclick='() => Pdf("maquinas-estado")'>PDF</button></div>
+
+    <h2>Historiales</h2>
+    <div class="botones">
+        <button class="btn sec" type="button" @onclick='() => Pdf("cobranzas")'>Historial de cobranzas (PDF)</button>
+        <button class="btn sec" type="button" @onclick='() => Pdf("mantenimientos")'>Historial de mantenimientos (PDF)</button>
+    </div>
+
+    <h2>Últimos reportes generados</h2>
+    @if (generados.Count == 0)
+    {
+        <div class="vacio">Todavía no se generó ningún PDF.</div>
+    }
+    <div class="lista">
+        @foreach (var g in generados.Take(10))
+        {
+            <div class="item gris">
+                <div class="cab"><strong>@g.TipoReporte</strong><span>@g.FechaGeneracion.ToString("dd/MM HH:mm")</span></div>
+                <div class="linea">@g.Filtros · @g.Usuario</div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    List<RecaudacionPeriodoDto>? recaudacion;
+    List<MaquinasLocalidadDto>? porLocalidad;
+    List<MaquinasEstadoDto>? porEstado;
+    List<ReporteGeneradoDto> generados = new();
+    DateTime? desde = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-5);
+    DateTime? hasta;
+    string? error;
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    async Task Cargar()
+    {
+        try
+        {
+            porLocalidad = await Api.ReporteMaquinasLocalidadAsync();
+            porEstado = await Api.ReporteMaquinasEstadoAsync();
+            recaudacion = await Api.ReporteRecaudacionAsync(desde, hasta);
+            generados = await Api.ReportesGeneradosAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            porLocalidad ??= new(); porEstado ??= new(); recaudacion ??= new();
+        }
+    }
+
+    static string Ancho(decimal valor, decimal max) =>
+        max <= 0 ? "0%" : (valor / max * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%";
+
+    async Task Pdf(string reporte)
+    {
+        error = null;
+        try
+        {
+            var bytes = await Api.ReportePdfAsync(reporte, desde, hasta);
+            await Archivos.AbrirPdfAsync($"{reporte}-{DateTime.Now:yyyyMMdd}.pdf", bytes);
+            generados = await Api.ReportesGeneradosAsync();
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+}

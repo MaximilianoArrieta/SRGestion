@@ -1,0 +1,125 @@
+@page "/admin/solicitudes"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+
+<a class="volver" href="admin/operaciones">‹ Operaciones</a>
+<div class="titulo">
+    <h1>Solicitudes</h1>
+    <p>Pedidos de los comercios.</p>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+<Alerta @bind-Mensaje="ok" Ok="true" />
+
+<div class="pestanas">
+    <button class="@(estado is null ? "activa" : "")" @onclick="() => Filtrar(null)">Todas</button>
+    @foreach (var e in Enum.GetValues<EstadoSolicitud>())
+    {
+        var valor = e;
+        <button class="@(estado == valor ? "activa" : "")" @onclick="() => Filtrar(valor)">@Textos.De(valor)</button>
+    }
+</div>
+
+@if (lista is null)
+{
+    <Cargando />
+}
+else if (lista.Count == 0)
+{
+    <div class="vacio">No hay solicitudes.</div>
+}
+else
+{
+    <div class="lista">
+        @foreach (var s in lista)
+        {
+            <div class="item @Chip.De(s.Estado)">
+                <div class="cab">
+                    <strong>@Textos.De(s.TipoSolicitud)@(s.Maquina is null ? "" : $" · {s.Maquina}")</strong>
+                    <Chip Texto="@Textos.De(s.Estado)" Color="@Chip.De(s.Estado)" />
+                </div>
+                <div class="linea">@s.Cliente · @s.Localidad · @Textos.Fecha(s.FechaSolicitud)</div>
+                @if (!string.IsNullOrEmpty(s.Observaciones))
+                {
+                    <div class="linea">"@s.Observaciones"</div>
+                }
+                @if (!string.IsNullOrEmpty(s.Respuesta))
+                {
+                    <div class="linea">Respuesta: @s.Respuesta</div>
+                }
+                <div class="fila-btn">
+                    <button class="btn chico" type="button" @onclick="() => Abrir(s)">Responder</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<Hoja @bind-Visible="verForm" Titulo="Responder solicitud">
+    <EditForm Model="respuesta" OnValidSubmit="Guardar">
+        <div class="campo">
+            <label>Estado</label>
+            <InputSelect @bind-Value="respuesta.Estado">
+                @foreach (var e in Enum.GetValues<EstadoSolicitud>())
+                {
+                    <option value="@e">@Textos.De(e)</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="campo">
+            <label>Respuesta para el comercio</label>
+            <InputTextArea @bind-Value="respuesta.Respuesta" placeholder="Ej.: Pasamos el jueves." />
+        </div>
+        <div class="botones">
+            <button class="btn" type="submit">Guardar</button>
+            <button class="btn sec" type="button" @onclick="() => verForm = false">Cancelar</button>
+        </div>
+    </EditForm>
+</Hoja>
+
+@code {
+    List<SolicitudDto>? lista;
+    EstadoSolicitud? estado = EstadoSolicitud.Pendiente;
+    bool verForm;
+    string? error, ok;
+    SolicitudDto? seleccionada;
+    SolicitudResolverDto respuesta = new();
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    async Task Cargar()
+    {
+        try { lista = await Api.SolicitudesAsync(estado); }
+        catch (ApiException ex) { error = ex.Message; lista = new(); }
+    }
+
+    Task Filtrar(EstadoSolicitud? e)
+    {
+        estado = e;
+        return Cargar();
+    }
+
+    void Abrir(SolicitudDto s)
+    {
+        seleccionada = s;
+        respuesta = new SolicitudResolverDto
+        {
+            Estado = s.Estado == EstadoSolicitud.Pendiente ? EstadoSolicitud.Aprobada : s.Estado,
+            Respuesta = s.Respuesta
+        };
+        verForm = true;
+    }
+
+    async Task Guardar()
+    {
+        if (seleccionada is null) return;
+        try
+        {
+            await Api.ResolverSolicitudAsync(seleccionada.IdSolicitud, respuesta);
+            verForm = false;
+            ok = "Solicitud actualizada.";
+            await Cargar();
+        }
+        catch (ApiException ex) { verForm = false; error = ex.Message; }
+    }
+}

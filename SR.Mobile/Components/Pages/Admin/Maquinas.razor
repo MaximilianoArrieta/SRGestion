@@ -1,0 +1,70 @@
+@page "/admin/maquinas"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+
+<div class="titulo">
+    <h1>Máquinas</h1>
+    <p>Todas las máquinas y dónde están.</p>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+
+<div class="buscador">
+    <input placeholder="Buscar número o comercio" @bind="buscar" @bind:event="oninput" @bind:after="Cargar" />
+</div>
+<div class="pestanas">
+    <button class="@(estado is null ? "activa" : "")" @onclick="() => Filtrar(null)">Todas</button>
+    @foreach (var e in Enum.GetValues<EstadoMaquina>())
+    {
+        var valor = e;
+        <button class="@(estado == valor ? "activa" : "")" @onclick="() => Filtrar(valor)">@Textos.De(valor)</button>
+    }
+</div>
+
+@if (maquinas is null)
+{
+    <Cargando />
+}
+else if (maquinas.Count == 0)
+{
+    <div class="vacio">No se encontraron máquinas.</div>
+}
+else
+{
+    <div class="lista">
+        @foreach (var m in maquinas)
+        {
+            <a class="item @Chip.De(m.Estado)" href="admin/maquinas/@m.IdMaquina">
+                <div class="cab">
+                    <strong>@m.NumeroIdentificacion</strong>
+                    <Chip Texto="@Textos.De(m.Estado)" Color="@Chip.De(m.Estado)" />
+                </div>
+                <div class="linea">@m.Tipo · @m.Descripcion</div>
+                <div class="linea">@(m.ClienteActual is null ? "En depósito" : $"{m.ClienteActual} · {m.LocalidadActual}")</div>
+            </a>
+        }
+    </div>
+}
+
+<a class="fab" href="admin/maquinas/nueva" aria-label="Nueva máquina">+</a>
+
+@code {
+    List<MaquinaDto>? maquinas;
+    string buscar = "";
+    EstadoMaquina? estado;
+    string? error;
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    async Task Cargar()
+    {
+        try { maquinas = await Api.MaquinasAsync(buscar, estado); }
+        catch (ApiException ex) { error = ex.Message; maquinas = new(); }
+    }
+
+    Task Filtrar(EstadoMaquina? e)
+    {
+        estado = e;
+        return Cargar();
+    }
+}

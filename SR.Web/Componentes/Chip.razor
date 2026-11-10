@@ -1,0 +1,31 @@
+<span class="chip @Color">@Texto</span>
+
+@code {
+    [Parameter] public string Texto { get; set; } = "";
+    [Parameter] public string Color { get; set; } = "gris";
+
+    public static string De(EstadoMaquina e) => e switch
+    {
+        EstadoMaquina.Instalada => "cian",
+        EstadoMaquina.Disponible => "naranja",
+        EstadoMaquina.EnReparacion => "rojo",
+        _ => "gris"
+    };
+
+    public static string De(EstadoMantenimiento e) => e switch
+    {
+        EstadoMantenimiento.Pendiente => "rojo",
+        EstadoMantenimiento.EnProceso => "naranja",
+        _ => "cian"
+    };
+
+    public static string De(EstadoSolicitud e) => e switch
+    {
+        EstadoSolicitud.Pendiente => "naranja",
+        EstadoSolicitud.Aprobada => "cian",
+        EstadoSolicitud.Rechazada => "rojo",
+        _ => "gris"
+    };
+
+    public static string De(EstadoInstalacion e) => e == EstadoInstalacion.Activa ? "cian" : "gris";
+}

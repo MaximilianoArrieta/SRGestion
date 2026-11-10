@@ -1,0 +1,49 @@
+@page "/cliente/solicitudes"
+@attribute [Authorize(Roles = Roles.Cliente)]
+@inject SrApi Api
+
+<div class="titulo">
+    <h1>Mis solicitudes</h1>
+    <p>Lo que le pediste a SR y en qué estado está.</p>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+
+@if (lista is null)
+{
+    <Cargando />
+}
+else if (lista.Count == 0)
+{
+    <div class="vacio">Todavía no hiciste solicitudes. Las podés hacer desde Máquinas.</div>
+}
+else
+{
+    <div class="lista">
+        @foreach (var s in lista)
+        {
+            <div class="item @Chip.De(s.Estado)">
+                <div class="cab">
+                    <strong>@Textos.De(s.TipoSolicitud)@(s.Maquina is null ? "" : $" · {s.Maquina}")</strong>
+                    <Chip Texto="@Textos.De(s.Estado)" Color="@Chip.De(s.Estado)" />
+                </div>
+                <div class="linea">@Textos.Fecha(s.FechaSolicitud) · @s.Observaciones</div>
+                @if (!string.IsNullOrEmpty(s.Respuesta))
+                {
+                    <div class="linea"><strong>SR:</strong> @s.Respuesta</div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    List<SolicitudDto>? lista;
+    string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { lista = await Api.MisSolicitudesAsync(); }
+        catch (ApiException ex) { error = ex.Message; lista = new(); }
+    }
+}

@@ -1,0 +1,121 @@
+@page "/admin"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+
+<PageTitle>Inicio · SR</PageTitle>
+
+<div class="titulo">
+    <div>
+        <h1>Inicio</h1>
+        <p>Resumen del negocio al @DateTime.Today.ToString("dd 'de' MMMM 'de' yyyy").</p>
+    </div>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+
+@if (r is null)
+{
+    <Cargando />
+}
+else
+{
+    <div class="kpis">
+        <a class="kpi" href="admin/maquinas">
+            <span class="etiqueta">Máquinas instaladas</span>
+            <span class="valor">@r.MaquinasInstaladas</span>
+            <span class="etiqueta">@r.MaquinasDisponibles disponibles · @r.MaquinasEnReparacion en reparación</span>
+        </a>
+        <a class="kpi" href="admin/cobranzas">
+            <span class="etiqueta">Recaudación del mes</span>
+            <span class="valor">@Textos.Plata(r.RecaudacionMes)</span>
+            <span class="etiqueta">Mes anterior: @Textos.Plata(r.RecaudacionMesAnterior)</span>
+        </a>
+        <a class="kpi" href="admin/solicitudes">
+            <span class="etiqueta">Solicitudes pendientes</span>
+            <span class="valor">@r.SolicitudesPendientes</span>
+            <span class="etiqueta">de los comercios</span>
+        </a>
+        <a class="kpi" href="admin/clientes">
+            <span class="etiqueta">Clientes activos</span>
+            <span class="valor">@r.ClientesActivos</span>
+            <span class="etiqueta">comercios</span>
+        </a>
+        <a class="kpi" href="admin/mantenimientos">
+            <span class="etiqueta">Mantenimientos abiertos</span>
+            <span class="valor">@r.MantenimientosPendientes</span>
+            <span class="etiqueta">pendientes o en proceso</span>
+        </a>
+    </div>
+
+    <div class="dos-col">
+        <div class="panel">
+            <h2>Próximos retiros</h2>
+            @if (r.ProximosRetiros.Count == 0)
+            {
+                <div class="vacio">No hay retiros programados en los próximos 30 días.</div>
+            }
+            else
+            {
+                <div class="tabla-wrap">
+                    <table class="tabla">
+                        <thead><tr><th>Fecha</th><th>Máquina</th><th>Comercio</th></tr></thead>
+                        <tbody>
+                            @foreach (var i in r.ProximosRetiros)
+                            {
+                                <tr>
+                                    <td>
+                                        @Textos.Fecha(i.FechaRetiroProgramada)
+                                        @if (i.FechaRetiroProgramada < DateTime.Today)
+                                        {
+                                            <Chip Texto="Vencido" Color="rojo" />
+                                        }
+                                    </td>
+                                    <td><a href="admin/maquinas/@i.IdMaquina">@i.Maquina</a> · @i.Tipo</td>
+                                    <td>@i.Cliente <br /><small>@i.Localidad</small></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        <div class="panel">
+            <h2>Mantenimientos abiertos</h2>
+            @if (r.MantenimientosAbiertos.Count == 0)
+            {
+                <div class="vacio">No hay mantenimientos pendientes.</div>
+            }
+            else
+            {
+                <div class="tabla-wrap">
+                    <table class="tabla">
+                        <thead><tr><th>Fecha</th><th>Máquina</th><th>Tarea</th><th>Estado</th></tr></thead>
+                        <tbody>
+                            @foreach (var m in r.MantenimientosAbiertos)
+                            {
+                                <tr>
+                                    <td>@Textos.Fecha(m.Fecha)</td>
+                                    <td><a href="admin/maquinas/@m.IdMaquina">@m.Maquina</a></td>
+                                    <td>@m.Descripcion</td>
+                                    <td><Chip Texto="@Textos.De(m.Estado)" Color="@Chip.De(m.Estado)" /></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    ResumenDto? r;
+    string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { r = await Api.ResumenAsync(); }
+        catch (ApiException ex) { error = ex.Message; r = new(); }
+    }
+}

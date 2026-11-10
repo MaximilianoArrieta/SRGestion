@@ -1,0 +1,16 @@
+@if (Visible)
+{
+    <div class="hoja-fondo" @onclick="() => VisibleChanged.InvokeAsync(false)">
+        <div class="hoja" role="dialog" aria-modal="true" aria-label="@Titulo" @onclick:stopPropagation="true">
+            <h2>@Titulo</h2>
+            @ChildContent
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public string Titulo { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

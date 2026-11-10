@@ -1,0 +1,25 @@
+@inject NavigationManager Nav
+
+@if (logueado)
+{
+    <div class="titulo">
+        <div>
+            <h1>Sin permiso</h1>
+            <p>Tu usuario no tiene acceso a esta pantalla.</p>
+        </div>
+    </div>
+    <a class="btn" href="">Ir a mi inicio</a>
+}
+
+@code {
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+    bool logueado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var estado = await AuthState;
+        logueado = estado.User.Identity?.IsAuthenticated == true;
+        if (!logueado)
+            Nav.NavigateTo("login", replace: true);
+    }
+}

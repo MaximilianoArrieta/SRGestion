@@ -1,0 +1,30 @@
+@page "/admin/operaciones"
+@attribute [Authorize(Roles = Roles.Admin)]
+
+<PageTitle>Operaciones · SR</PageTitle>
+
+<div class="titulo">
+    <div>
+        <h1>Operaciones</h1>
+        <p>El trabajo de todos los días: instalar, cobrar, reparar y responder a los comercios.</p>
+    </div>
+</div>
+
+<div class="menu-ops">
+    <a href="admin/instalaciones">
+        <strong>Instalaciones</strong>
+        <span>Instalar máquinas en comercios y registrar retiros.</span>
+    </a>
+    <a href="admin/cobranzas">
+        <strong>Cobranzas</strong>
+        <span>Registrar lo recaudado en cada máquina y ver el historial.</span>
+    </a>
+    <a href="admin/mantenimientos">
+        <strong>Mantenimientos</strong>
+        <span>Reparaciones y mantenimientos preventivos.</span>
+    </a>
+    <a href="admin/solicitudes">
+        <strong>Solicitudes</strong>
+        <span>Pedidos de los comercios: mantenimiento, retiro o máquinas nuevas.</span>
+    </a>
+</div>

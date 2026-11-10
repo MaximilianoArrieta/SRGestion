@@ -1,0 +1,15 @@
+@page "/"
+@attribute [Authorize]
+@inject NavigationManager Nav
+
+<Cargando />
+
+@code {
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var usuario = (await AuthState).User;
+        Nav.NavigateTo(usuario.EsAdmin() ? "admin" : "cliente", replace: true);
+    }
+}

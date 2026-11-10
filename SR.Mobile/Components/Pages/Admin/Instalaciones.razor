@@ -1,0 +1,185 @@
+@page "/admin/instalaciones"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+
+<a class="volver" href="admin/operaciones">‹ Operaciones</a>
+<div class="titulo">
+    <h1>Instalaciones</h1>
+    <p>Dónde está cada máquina.</p>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+<Alerta @bind-Mensaje="ok" Ok="true" />
+
+<div class="pestanas">
+    <button class="@(soloActivas ? "activa" : "")" @onclick="() => Filtrar(true)">Instaladas ahora</button>
+    <button class="@(soloActivas ? "" : "activa")" @onclick="() => Filtrar(false)">Historial completo</button>
+</div>
+
+@if (lista is null)
+{
+    <Cargando />
+}
+else if (lista.Count == 0)
+{
+    <div class="vacio">No hay instalaciones.</div>
+}
+else
+{
+    <div class="lista">
+        @foreach (var i in lista)
+        {
+            <div class="item @Chip.De(i.Estado)">
+                <div class="cab">
+                    <strong>@i.Maquina · @i.Tipo</strong>
+                    <Chip Texto="@Textos.De(i.Estado)" Color="@Chip.De(i.Estado)" />
+                </div>
+                <div class="linea">@i.Cliente · @i.Localidad</div>
+                <div class="linea">
+                    Instalada el @Textos.Fecha(i.FechaInstalacion)
+                    @if (i.FechaRetiroReal is not null)
+                    {
+                        <span> · retirada el @Textos.Fecha(i.FechaRetiroReal)</span>
+                    }
+                    else if (i.FechaRetiroProgramada is not null)
+                    {
+                        <span> · retiro previsto @Textos.Fecha(i.FechaRetiroProgramada)</span>
+                    }
+                </div>
+                @if (i.Estado == EstadoInstalacion.Activa)
+                {
+                    <div class="fila-btn">
+                        <button class="btn chico peligro" type="button" @onclick="() => AbrirRetiro(i)">Registrar retiro</button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<button class="fab" type="button" @onclick="AbrirInstalar" aria-label="Instalar máquina">+</button>
+
+<Hoja @bind-Visible="verInstalar" Titulo="Instalar máquina">
+    <EditForm Model="nueva" OnValidSubmit="Instalar">
+        <DataAnnotationsValidator />
+        <div class="campo">
+            <label>Máquina disponible</label>
+            <InputSelect @bind-Value="nueva.IdMaquina">
+                <option value="0">Elegí la máquina</option>
+                @foreach (var m in disponibles)
+                {
+                    <option value="@m.IdMaquina">@m.NumeroIdentificacion · @m.Tipo</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="() => nueva.IdMaquina" />
+        </div>
+        <div class="campo">
+            <label>Comercio</label>
+            <InputSelect @bind-Value="nueva.IdCliente">
+                <option value="0">Elegí el comercio</option>
+                @foreach (var c in clientes)
+                {
+                    <option value="@c.IdCliente">@c.RazonSocial · @c.Localidad</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="() => nueva.IdCliente" />
+        </div>
+        <div class="dos">
+            <div class="campo">
+                <label>Instalación</label>
+                <InputDate @bind-Value="nueva.FechaInstalacion" />
+            </div>
+            <div class="campo">
+                <label>Retiro previsto</label>
+                <InputDate @bind-Value="nueva.FechaRetiroProgramada" />
+            </div>
+        </div>
+        <div class="botones">
+            <button class="btn" type="submit">Instalar</button>
+            <button class="btn sec" type="button" @onclick="() => verInstalar = false">Cancelar</button>
+        </div>
+    </EditForm>
+</Hoja>
+
+<Hoja @bind-Visible="verRetiro" Titulo="Registrar retiro">
+    <p>@seleccionada?.Maquina de @seleccionada?.Cliente vuelve al depósito.</p>
+    <EditForm Model="retiro" OnValidSubmit="Retirar">
+        <div class="campo">
+            <label>Fecha de retiro</label>
+            <InputDate @bind-Value="retiro.FechaRetiro" />
+        </div>
+        <div class="botones">
+            <button class="btn peligro" type="submit">Registrar retiro</button>
+            <button class="btn sec" type="button" @onclick="() => verRetiro = false">Cancelar</button>
+        </div>
+    </EditForm>
+</Hoja>
+
+@code {
+    List<InstalacionDto>? lista;
+    List<MaquinaDto> disponibles = new();
+    List<ClienteDto> clientes = new();
+    bool soloActivas = true, verInstalar, verRetiro;
+    string? error, ok;
+    InstalarDto nueva = new();
+    RetiroDto retiro = new();
+    InstalacionDto? seleccionada;
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    async Task Cargar()
+    {
+        try { lista = await Api.InstalacionesAsync(soloActivas); }
+        catch (ApiException ex) { error = ex.Message; lista = new(); }
+    }
+
+    Task Filtrar(bool activas)
+    {
+        soloActivas = activas;
+        return Cargar();
+    }
+
+    async Task AbrirInstalar()
+    {
+        try
+        {
+            disponibles = await Api.MaquinasAsync(estado: EstadoMaquina.Disponible);
+            clientes = await Api.ClientesAsync();
+            nueva = new InstalarDto();
+            verInstalar = true;
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+
+    async Task Instalar()
+    {
+        try
+        {
+            var i = await Api.InstalarAsync(nueva);
+            verInstalar = false;
+            ok = $"{i.Maquina} instalada en {i.Cliente}.";
+            await Cargar();
+        }
+        catch (ApiException ex) { verInstalar = false; error = ex.Message; }
+    }
+
+    void AbrirRetiro(InstalacionDto i)
+    {
+        seleccionada = i;
+        retiro = new RetiroDto();
+        verRetiro = true;
+    }
+
+    async Task Retirar()
+    {
+        if (seleccionada is null) return;
+        try
+        {
+            await Api.RetirarAsync(seleccionada.IdInstalacion, retiro);
+            verRetiro = false;
+            ok = $"{seleccionada.Maquina} retirada.";
+            await Cargar();
+        }
+        catch (ApiException ex) { verRetiro = false; error = ex.Message; }
+    }
+}

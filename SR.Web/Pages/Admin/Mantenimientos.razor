@@ -1,0 +1,185 @@
+@page "/admin/mantenimientos"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+
+<PageTitle>Mantenimientos · SR</PageTitle>
+
+<div class="titulo">
+    <div>
+        <h1>Mantenimientos</h1>
+        <p>Reparaciones y mantenimientos preventivos de cada máquina.</p>
+    </div>
+    <div class="acciones">
+        <button class="btn" type="button" @onclick="AbrirNuevo">+ Nuevo mantenimiento</button>
+    </div>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+<Alerta @bind-Mensaje="ok" Ok="true" />
+
+<div class="filtros">
+    <div style="flex:0 1 260px">
+        <label>Estado</label>
+        <select @bind="estado" @bind:after="Cargar">
+            <option value="">Todos</option>
+            @foreach (var e in Enum.GetValues<EstadoMantenimiento>())
+            {
+                <option value="@e">@Textos.De(e)</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (lista is null)
+{
+    <Cargando />
+}
+else if (lista.Count == 0)
+{
+    <div class="panel vacio">No hay mantenimientos.</div>
+}
+else
+{
+    <div class="tabla-wrap">
+        <table class="tabla">
+            <thead>
+                <tr><th>Fecha</th><th>Máquina</th><th>Tipo</th><th>Descripción</th><th>Estado</th><th class="num">Costo</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var m in lista)
+                {
+                    <tr>
+                        <td>@Textos.Fecha(m.Fecha)</td>
+                        <td><a href="admin/maquinas/@m.IdMaquina">@m.Maquina</a><br /><small>@m.Tipo</small></td>
+                        <td>@Textos.De(m.TipoMantenimiento)</td>
+                        <td>@m.Descripcion</td>
+                        <td><Chip Texto="@Textos.De(m.Estado)" Color="@Chip.De(m.Estado)" /></td>
+                        <td class="num">@Textos.Plata(m.Costo)</td>
+                        <td class="acc"><button class="btn chico sec" type="button" @onclick="() => AbrirEditar(m)">Editar</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<Modal @bind-Visible="verForm" Titulo="@(idEditando is null ? "Nuevo mantenimiento" : "Editar mantenimiento")">
+    <EditForm Model="modelo" OnValidSubmit="Guardar">
+        <DataAnnotationsValidator />
+        <div class="form">
+            <div class="campo ancho">
+                <label>Máquina</label>
+                <InputSelect @bind-Value="modelo.IdMaquina" disabled="@(idEditando is not null)">
+                    <option value="0">Elegí la máquina</option>
+                    @foreach (var m in maquinas)
+                    {
+                        <option value="@m.IdMaquina">@m.NumeroIdentificacion · @m.Tipo · @(m.ClienteActual ?? "Depósito")</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="() => modelo.IdMaquina" />
+            </div>
+            <div class="campo">
+                <label>Fecha</label>
+                <InputDate @bind-Value="modelo.Fecha" />
+            </div>
+            <div class="campo">
+                <label>Tipo</label>
+                <InputSelect @bind-Value="modelo.TipoMantenimiento">
+                    <option value="@TipoMantenimiento.Preventivo">Preventivo</option>
+                    <option value="@TipoMantenimiento.Correctivo">Correctivo (reparación)</option>
+                </InputSelect>
+            </div>
+            <div class="campo">
+                <label>Estado</label>
+                <InputSelect @bind-Value="modelo.Estado">
+                    @foreach (var e in Enum.GetValues<EstadoMantenimiento>())
+                    {
+                        <option value="@e">@Textos.De(e)</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="campo">
+                <label>Costo ($)</label>
+                <InputNumber @bind-Value="modelo.Costo" />
+                <ValidationMessage For="() => modelo.Costo" />
+            </div>
+            <div class="campo ancho">
+                <label>Descripción de la tarea</label>
+                <InputTextArea @bind-Value="modelo.Descripcion" />
+                <ValidationMessage For="() => modelo.Descripcion" />
+            </div>
+        </div>
+        <div class="botones">
+            <button class="btn" type="submit">Guardar</button>
+            <button class="btn sec" type="button" @onclick="() => verForm = false">Cancelar</button>
+        </div>
+    </EditForm>
+</Modal>
+
+@code {
+    List<MantenimientoDto>? lista;
+    List<MaquinaDto> maquinas = new();
+    EstadoMantenimiento? estado;
+    string? error, ok;
+
+    bool verForm;
+    int? idEditando;
+    MantenimientoGuardarDto modelo = new();
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    async Task Cargar()
+    {
+        try { lista = await Api.MantenimientosAsync(estado); }
+        catch (ApiException ex) { error = ex.Message; lista = new(); }
+    }
+
+    async Task CargarMaquinas()
+    {
+        if (maquinas.Count == 0)
+            maquinas = (await Api.MaquinasAsync()).Where(m => m.Estado != EstadoMaquina.Baja).ToList();
+    }
+
+    async Task AbrirNuevo()
+    {
+        error = null;
+        try
+        {
+            await CargarMaquinas();
+            idEditando = null;
+            modelo = new MantenimientoGuardarDto();
+            verForm = true;
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+
+    async Task AbrirEditar(MantenimientoDto m)
+    {
+        error = null;
+        try
+        {
+            await CargarMaquinas();
+            idEditando = m.IdMantenimiento;
+            modelo = new MantenimientoGuardarDto
+            {
+                IdMaquina = m.IdMaquina, Fecha = m.Fecha, TipoMantenimiento = m.TipoMantenimiento,
+                Descripcion = m.Descripcion, Costo = m.Costo, Estado = m.Estado
+            };
+            verForm = true;
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+
+    async Task Guardar()
+    {
+        try
+        {
+            if (idEditando is null) await Api.CrearMantenimientoAsync(modelo);
+            else await Api.EditarMantenimientoAsync(idEditando.Value, modelo);
+            verForm = false;
+            ok = "Mantenimiento guardado.";
+            await Cargar();
+        }
+        catch (ApiException ex) { verForm = false; error = ex.Message; }
+    }
+}

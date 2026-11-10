@@ -1,0 +1,131 @@
+@page "/admin/clientes"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+
+<PageTitle>Clientes · SR</PageTitle>
+
+<div class="titulo">
+    <div>
+        <h1>Clientes</h1>
+        <p>Comercios donde hay máquinas instaladas.</p>
+    </div>
+    <div class="acciones">
+        <a class="btn" href="admin/clientes/nuevo">+ Nuevo cliente</a>
+    </div>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+<Alerta @bind-Mensaje="ok" Ok="true" />
+
+<div class="filtros">
+    <div>
+        <label for="buscar">Buscar</label>
+        <input id="buscar" placeholder="Comercio, responsable o localidad" @bind="buscar" @bind:event="oninput" @onkeyup="Tecla" />
+    </div>
+    <div style="flex:0 0 auto">
+        <label><input type="checkbox" @bind="incluirBajas" @bind:after="Cargar" style="width:auto" /> Ver dados de baja</label>
+    </div>
+    <button class="btn sec" type="button" @onclick="Cargar">Buscar</button>
+</div>
+
+@if (clientes is null)
+{
+    <Cargando />
+}
+else if (clientes.Count == 0)
+{
+    <div class="panel vacio">No se encontraron clientes.</div>
+}
+else
+{
+    <div class="tabla-wrap">
+        <table class="tabla">
+            <thead>
+                <tr><th>Comercio</th><th>Responsable</th><th>Teléfono</th><th>Localidad</th><th class="num">Máquinas</th><th>Acceso</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var c in clientes)
+                {
+                    <tr>
+                        <td>
+                            <strong>@c.RazonSocial</strong>
+                            @if (!c.Activo) { <Chip Texto="De baja" Color="gris" /> }
+                            <br /><small>@c.Direccion</small>
+                        </td>
+                        <td>@c.Responsable</td>
+                        <td>@c.Telefono</td>
+                        <td>@c.Localidad, @c.Provincia</td>
+                        <td class="num">@c.MaquinasInstaladas</td>
+                        <td>@(c.UsuarioAcceso ?? "-")</td>
+                        <td class="acc">
+                            <a class="btn chico sec" href="admin/clientes/@c.IdCliente">Editar</a>
+                            @if (c.Activo)
+                            {
+                                <button class="btn chico peligro" type="button" @onclick="() => PedirBaja(c)">Dar de baja</button>
+                            }
+                            else
+                            {
+                                <button class="btn chico cian" type="button" @onclick="() => Reactivar(c)">Reactivar</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<Confirmar @bind-Visible="confirmar" Titulo="Dar de baja"
+           Mensaje="@($"¿Estás seguro de que querés dar de baja a {seleccionado?.RazonSocial}? Se conserva todo su historial.")"
+           TextoAceptar="Dar de baja" OnAceptar="Baja" />
+
+@code {
+    List<ClienteDto>? clientes;
+    string buscar = "";
+    bool incluirBajas;
+    string? error, ok;
+    bool confirmar;
+    ClienteDto? seleccionado;
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    async Task Cargar()
+    {
+        try { clientes = await Api.ClientesAsync(buscar, incluirBajas); }
+        catch (ApiException ex) { error = ex.Message; clientes = new(); }
+    }
+
+    async Task Tecla(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Cargar();
+    }
+
+    void PedirBaja(ClienteDto c)
+    {
+        seleccionado = c;
+        confirmar = true;
+    }
+
+    async Task Baja()
+    {
+        if (seleccionado is null) return;
+        try
+        {
+            await Api.BajaClienteAsync(seleccionado.IdCliente);
+            ok = $"{seleccionado.RazonSocial} quedó dado de baja.";
+            await Cargar();
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+
+    async Task Reactivar(ClienteDto c)
+    {
+        try
+        {
+            await Api.ReactivarClienteAsync(c.IdCliente);
+            ok = $"{c.RazonSocial} está activo otra vez.";
+            await Cargar();
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+}

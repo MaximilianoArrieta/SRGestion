@@ -1,0 +1,188 @@
+@page "/admin/instalaciones"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+
+<PageTitle>Instalaciones · SR</PageTitle>
+
+<div class="titulo">
+    <div>
+        <h1>Instalaciones y retiros</h1>
+        <p>Dónde está cada máquina y dónde estuvo antes.</p>
+    </div>
+    <div class="acciones">
+        <button class="btn" type="button" @onclick="AbrirInstalar">+ Instalar máquina</button>
+    </div>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+<Alerta @bind-Mensaje="ok" Ok="true" />
+
+<div class="filtros">
+    <div style="flex:0 0 auto">
+        <label><input type="checkbox" @bind="soloActivas" @bind:after="Cargar" style="width:auto" /> Solo las instaladas ahora</label>
+    </div>
+</div>
+
+@if (lista is null)
+{
+    <Cargando />
+}
+else if (lista.Count == 0)
+{
+    <div class="panel vacio">No hay instalaciones registradas.</div>
+}
+else
+{
+    <div class="tabla-wrap">
+        <table class="tabla">
+            <thead>
+                <tr><th>Máquina</th><th>Comercio</th><th>Instalada</th><th>Retiro previsto</th><th>Retirada</th><th>Estado</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var i in lista)
+                {
+                    <tr>
+                        <td><a href="admin/maquinas/@i.IdMaquina"><strong>@i.Maquina</strong></a><br /><small>@i.Tipo</small></td>
+                        <td>@i.Cliente<br /><small>@i.Localidad</small></td>
+                        <td>@Textos.Fecha(i.FechaInstalacion)</td>
+                        <td>@Textos.Fecha(i.FechaRetiroProgramada)</td>
+                        <td>@Textos.Fecha(i.FechaRetiroReal)</td>
+                        <td><Chip Texto="@Textos.De(i.Estado)" Color="@Chip.De(i.Estado)" /></td>
+                        <td class="acc">
+                            @if (i.Estado == EstadoInstalacion.Activa)
+                            {
+                                <button class="btn chico peligro" type="button" @onclick="() => AbrirRetiro(i)">Retirar</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<Modal @bind-Visible="verInstalar" Titulo="Instalar máquina">
+    <EditForm Model="nueva" OnValidSubmit="Instalar">
+        <DataAnnotationsValidator />
+        <div class="form">
+            <div class="campo ancho">
+                <label>Máquina disponible</label>
+                <InputSelect @bind-Value="nueva.IdMaquina">
+                    <option value="0">Elegí la máquina</option>
+                    @foreach (var m in disponibles)
+                    {
+                        <option value="@m.IdMaquina">@m.NumeroIdentificacion · @m.Tipo</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="() => nueva.IdMaquina" />
+                @if (disponibles.Count == 0)
+                {
+                    <div class="ayuda">No hay máquinas disponibles en el depósito.</div>
+                }
+            </div>
+            <div class="campo ancho">
+                <label>Comercio</label>
+                <InputSelect @bind-Value="nueva.IdCliente">
+                    <option value="0">Elegí el comercio</option>
+                    @foreach (var c in clientes)
+                    {
+                        <option value="@c.IdCliente">@c.RazonSocial · @c.Localidad</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="() => nueva.IdCliente" />
+            </div>
+            <div class="campo">
+                <label>Fecha de instalación</label>
+                <InputDate @bind-Value="nueva.FechaInstalacion" />
+            </div>
+            <div class="campo">
+                <label>Retiro previsto (opcional)</label>
+                <InputDate @bind-Value="nueva.FechaRetiroProgramada" />
+            </div>
+        </div>
+        <div class="botones">
+            <button class="btn" type="submit">Instalar</button>
+            <button class="btn sec" type="button" @onclick="() => verInstalar = false">Cancelar</button>
+        </div>
+    </EditForm>
+</Modal>
+
+<Modal @bind-Visible="verRetiro" Titulo="Registrar retiro">
+    <p>Retirar <strong>@seleccionada?.Maquina</strong> de <strong>@seleccionada?.Cliente</strong>. La máquina vuelve al depósito como disponible.</p>
+    <EditForm Model="retiro" OnValidSubmit="Retirar">
+        <div class="campo">
+            <label>Fecha de retiro</label>
+            <InputDate @bind-Value="retiro.FechaRetiro" />
+        </div>
+        <div class="botones">
+            <button class="btn peligro" type="submit">Registrar retiro</button>
+            <button class="btn sec" type="button" @onclick="() => verRetiro = false">Cancelar</button>
+        </div>
+    </EditForm>
+</Modal>
+
+@code {
+    List<InstalacionDto>? lista;
+    List<MaquinaDto> disponibles = new();
+    List<ClienteDto> clientes = new();
+    bool soloActivas = true;
+    string? error, ok;
+
+    bool verInstalar, verRetiro;
+    InstalarDto nueva = new();
+    RetiroDto retiro = new();
+    InstalacionDto? seleccionada;
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    async Task Cargar()
+    {
+        try { lista = await Api.InstalacionesAsync(soloActivas); }
+        catch (ApiException ex) { error = ex.Message; lista = new(); }
+    }
+
+    async Task AbrirInstalar()
+    {
+        error = null;
+        try
+        {
+            disponibles = await Api.MaquinasAsync(estado: EstadoMaquina.Disponible);
+            clientes = await Api.ClientesAsync();
+            nueva = new InstalarDto();
+            verInstalar = true;
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+
+    async Task Instalar()
+    {
+        try
+        {
+            var i = await Api.InstalarAsync(nueva);
+            verInstalar = false;
+            ok = $"{i.Maquina} instalada en {i.Cliente}.";
+            await Cargar();
+        }
+        catch (ApiException ex) { verInstalar = false; error = ex.Message; }
+    }
+
+    void AbrirRetiro(InstalacionDto i)
+    {
+        seleccionada = i;
+        retiro = new RetiroDto();
+        verRetiro = true;
+    }
+
+    async Task Retirar()
+    {
+        if (seleccionada is null) return;
+        try
+        {
+            await Api.RetirarAsync(seleccionada.IdInstalacion, retiro);
+            verRetiro = false;
+            ok = $"{seleccionada.Maquina} retirada de {seleccionada.Cliente}.";
+            await Cargar();
+        }
+        catch (ApiException ex) { verRetiro = false; error = ex.Message; }
+    }
+}

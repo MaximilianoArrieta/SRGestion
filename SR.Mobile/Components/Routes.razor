@@ -1,0 +1,12 @@
+<Router AppAssembly="typeof(MauiProgram).Assembly" NotFoundPage="typeof(Pages.NoEncontrada)">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">
+            <NotAuthorized>
+                <SinPermiso />
+            </NotAuthorized>
+            <Authorizing>
+                <Cargando />
+            </Authorizing>
+        </AuthorizeRouteView>
+    </Found>
+</Router>

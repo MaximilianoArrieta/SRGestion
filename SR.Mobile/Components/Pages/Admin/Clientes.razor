@@ -1,0 +1,108 @@
+@page "/admin/clientes"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+
+<div class="titulo">
+    <h1>Clientes</h1>
+    <p>Comercios con máquinas de SR.</p>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+<Alerta @bind-Mensaje="ok" Ok="true" />
+
+<div class="buscador">
+    <input placeholder="Buscar comercio o localidad" @bind="buscar" @bind:event="oninput" @bind:after="Cargar" />
+</div>
+<div class="pestanas">
+    <button class="@(incluirBajas ? "" : "activa")" @onclick="() => Filtrar(false)">Activos</button>
+    <button class="@(incluirBajas ? "activa" : "")" @onclick="() => Filtrar(true)">Todos</button>
+</div>
+
+@if (clientes is null)
+{
+    <Cargando />
+}
+else if (clientes.Count == 0)
+{
+    <div class="vacio">No se encontraron clientes.</div>
+}
+else
+{
+    <div class="lista">
+        @foreach (var c in clientes)
+        {
+            <div class="item @(c.Activo ? "" : "gris")">
+                <div class="cab">
+                    <strong>@c.RazonSocial</strong>
+                    <span class="chip @(c.Activo ? "cian" : "gris")">@c.MaquinasInstaladas máq.</span>
+                </div>
+                <div class="linea">@c.Responsable · @c.Telefono</div>
+                <div class="linea">@c.Direccion, @c.Localidad</div>
+                <div class="fila-btn">
+                    <a class="btn chico sec" href="admin/clientes/@c.IdCliente">Editar</a>
+                    @if (c.Activo)
+                    {
+                        <button class="btn chico peligro" type="button" @onclick="() => PedirBaja(c)">Dar de baja</button>
+                    }
+                    else
+                    {
+                        <button class="btn chico cian" type="button" @onclick="() => Reactivar(c)">Reactivar</button>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<a class="fab" href="admin/clientes/nuevo" aria-label="Nuevo cliente">+</a>
+
+<Confirmar @bind-Visible="confirmar" Titulo="Dar de baja"
+           Mensaje="@($"¿Estás seguro de que querés dar de baja a {seleccionado?.RazonSocial}?")"
+           TextoAceptar="Dar de baja" OnAceptar="Baja" />
+
+@code {
+    List<ClienteDto>? clientes;
+    string buscar = "";
+    bool incluirBajas, confirmar;
+    string? error, ok;
+    ClienteDto? seleccionado;
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    async Task Cargar()
+    {
+        try { clientes = await Api.ClientesAsync(buscar, incluirBajas); }
+        catch (ApiException ex) { error = ex.Message; clientes = new(); }
+    }
+
+    Task Filtrar(bool todos)
+    {
+        incluirBajas = todos;
+        return Cargar();
+    }
+
+    void PedirBaja(ClienteDto c) { seleccionado = c; confirmar = true; }
+
+    async Task Baja()
+    {
+        if (seleccionado is null) return;
+        try
+        {
+            await Api.BajaClienteAsync(seleccionado.IdCliente);
+            ok = $"{seleccionado.RazonSocial} quedó dado de baja.";
+            await Cargar();
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+
+    async Task Reactivar(ClienteDto c)
+    {
+        try
+        {
+            await Api.ReactivarClienteAsync(c.IdCliente);
+            ok = $"{c.RazonSocial} está activo otra vez.";
+            await Cargar();
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+}

@@ -1,0 +1,107 @@
+erDiagram
+    PROVINCIA ||--o{ LOCALIDAD : "tiene"
+    LOCALIDAD ||--o{ CLIENTE : "ubica"
+    CLIENTE ||--o{ INSTALACION : "recibe"
+    MAQUINA ||--o{ INSTALACION : "se instala en"
+    TIPOMAQUINA ||--o{ MAQUINA : "clasifica"
+    MAQUINA ||--o{ COBRANZA : "genera"
+    CLIENTE ||--o{ COBRANZA : "participa"
+    USUARIO ||--o{ COBRANZA : "registra"
+    MAQUINA ||--o{ MANTENIMIENTO : "recibe"
+    CLIENTE ||--o{ SOLICITUD : "realiza"
+    MAQUINA |o--o{ SOLICITUD : "refiere a"
+    ROL ||--o{ USUARIO : "asigna"
+    CLIENTE |o--o{ USUARIO : "accede con"
+    USUARIO ||--o{ REPORTE : "genera"
+
+    PROVINCIA {
+        int IdProvincia PK
+        nvarchar Nombre
+    }
+    LOCALIDAD {
+        int IdLocalidad PK
+        nvarchar Nombre
+        int IdProvincia FK
+    }
+    CLIENTE {
+        int IdCliente PK
+        nvarchar RazonSocial
+        nvarchar Responsable
+        nvarchar Telefono
+        nvarchar Direccion
+        nvarchar DatosFiscales "nullable"
+        int IdLocalidad FK
+        bit Activo
+    }
+    TIPOMAQUINA {
+        int IdTipoMaquina PK
+        nvarchar Descripcion
+    }
+    MAQUINA {
+        int IdMaquina PK
+        nvarchar NumeroIdentificacion UK
+        nvarchar Descripcion "nullable"
+        nvarchar Estado
+        date FechaAlta
+        int IdTipoMaquina FK
+    }
+    INSTALACION {
+        int IdInstalacion PK
+        int IdMaquina FK
+        int IdCliente FK
+        date FechaInstalacion
+        date FechaRetiroProgramada "nullable"
+        date FechaRetiroReal "nullable"
+        nvarchar Estado
+    }
+    COBRANZA {
+        int IdCobranza PK
+        int IdMaquina FK
+        int IdCliente FK
+        int IdUsuario FK
+        date FechaCobro
+        decimal MontoRecaudado
+        decimal MontoComercio
+        nvarchar Observaciones "nullable"
+    }
+    MANTENIMIENTO {
+        int IdMantenimiento PK
+        int IdMaquina FK
+        date Fecha
+        nvarchar TipoMantenimiento
+        nvarchar Descripcion
+        decimal Costo
+        nvarchar Estado
+    }
+    SOLICITUD {
+        int IdSolicitud PK
+        int IdCliente FK
+        int IdMaquina FK "nullable"
+        nvarchar TipoSolicitud
+        datetime2 FechaSolicitud
+        nvarchar Estado
+        nvarchar Observaciones "nullable"
+        nvarchar Respuesta "nullable"
+    }
+    ROL {
+        int IdRol PK
+        nvarchar NombreRol
+    }
+    USUARIO {
+        int IdUsuario PK
+        nvarchar NombreUsuario UK
+        nvarchar Nombre
+        nvarchar Apellido
+        nvarchar Email "nullable"
+        nvarchar PasswordHash
+        bit Activo
+        int IdRol FK
+        int IdCliente FK "nullable"
+    }
+    REPORTE {
+        int IdReporte PK
+        nvarchar TipoReporte
+        nvarchar Filtros "nullable"
+        datetime2 FechaGeneracion
+        int IdUsuario FK
+    }

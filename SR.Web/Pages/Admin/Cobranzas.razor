@@ -1,0 +1,191 @@
+@page "/admin/cobranzas"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+@inject Navegador Navegador
+
+<PageTitle>Cobranzas · SR</PageTitle>
+
+<div class="titulo">
+    <div>
+        <h1>Cobranzas</h1>
+        <p>Lo recaudado en cada máquina y la parte que se le paga al comercio.</p>
+    </div>
+    <div class="acciones">
+        <button class="btn" type="button" @onclick="AbrirRegistrar">+ Registrar cobro</button>
+        <button class="btn sec" type="button" @onclick="ExportarPdf">Exportar PDF</button>
+    </div>
+</div>
+
+<Alerta @bind-Mensaje="error" />
+<Alerta @bind-Mensaje="ok" Ok="true" />
+
+<div class="filtros">
+    <div>
+        <label>Desde</label>
+        <input type="date" @bind="desde" />
+    </div>
+    <div>
+        <label>Hasta</label>
+        <input type="date" @bind="hasta" />
+    </div>
+    <div>
+        <label>Comercio</label>
+        <select @bind="idCliente">
+            <option value="0">Todos</option>
+            @foreach (var c in clientes)
+            {
+                <option value="@c.IdCliente">@c.RazonSocial</option>
+            }
+        </select>
+    </div>
+    <button class="btn sec" type="button" @onclick="Cargar">Filtrar</button>
+</div>
+
+@if (lista is null)
+{
+    <Cargando />
+}
+else if (lista.Count == 0)
+{
+    <div class="panel vacio">No hay cobranzas para los filtros elegidos.</div>
+}
+else
+{
+    <div class="tabla-wrap">
+        <table class="tabla">
+            <thead>
+                <tr><th>Fecha</th><th>Máquina</th><th>Comercio</th><th class="num">Recaudado</th><th class="num">Comercio</th><th class="num">SR</th><th>Registró</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var c in lista)
+                {
+                    <tr>
+                        <td>@Textos.Fecha(c.FechaCobro)</td>
+                        <td><a href="admin/maquinas/@c.IdMaquina">@c.Maquina</a><br /><small>@c.Tipo</small></td>
+                        <td>@c.Cliente<br /><small>@c.Localidad</small></td>
+                        <td class="num">@Textos.Plata(c.MontoRecaudado)</td>
+                        <td class="num">@Textos.Plata(c.MontoComercio)</td>
+                        <td class="num">@Textos.Plata(c.MontoEmpresa)</td>
+                        <td>@c.Usuario</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="3">Total · @lista.Count cobros</td>
+                    <td class="num">@Textos.Plata(lista.Sum(c => c.MontoRecaudado))</td>
+                    <td class="num">@Textos.Plata(lista.Sum(c => c.MontoComercio))</td>
+                    <td class="num">@Textos.Plata(lista.Sum(c => c.MontoEmpresa))</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+}
+
+<Modal @bind-Visible="verRegistrar" Titulo="Registrar cobro">
+    <EditForm Model="nuevo" OnValidSubmit="Registrar">
+        <DataAnnotationsValidator />
+        <div class="form">
+            <div class="campo ancho">
+                <label>Máquina instalada</label>
+                <InputSelect @bind-Value="nuevo.IdMaquina">
+                    <option value="0">Elegí la máquina</option>
+                    @foreach (var m in instaladas)
+                    {
+                        <option value="@m.IdMaquina">@m.NumeroIdentificacion · @m.Tipo · @m.ClienteActual</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="() => nuevo.IdMaquina" />
+            </div>
+            <div class="campo">
+                <label>Fecha</label>
+                <InputDate @bind-Value="nuevo.FechaCobro" />
+            </div>
+            <div class="campo">
+                <label>Monto recaudado ($)</label>
+                <InputNumber @bind-Value="nuevo.MontoRecaudado" @bind-Value:after="CalcularComercio" />
+                <ValidationMessage For="() => nuevo.MontoRecaudado" />
+            </div>
+            <div class="campo">
+                <label>% para el comercio</label>
+                <input type="number" min="0" max="100" @bind="porcentaje" @bind:after="CalcularComercio" />
+            </div>
+            <div class="campo">
+                <label>Pagado al comercio ($)</label>
+                <InputNumber @bind-Value="nuevo.MontoComercio" />
+                <ValidationMessage For="() => nuevo.MontoComercio" />
+            </div>
+            <div class="campo ancho">
+                <label>Observaciones</label>
+                <InputTextArea @bind-Value="nuevo.Observaciones" />
+            </div>
+        </div>
+        <div class="botones">
+            <button class="btn" type="submit">Registrar</button>
+            <button class="btn sec" type="button" @onclick="() => verRegistrar = false">Cancelar</button>
+        </div>
+    </EditForm>
+</Modal>
+
+@code {
+    List<CobranzaDto>? lista;
+    List<ClienteDto> clientes = new();
+    List<MaquinaDto> instaladas = new();
+    DateTime? desde = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-2);
+    DateTime? hasta;
+    int idCliente;
+    string? error, ok;
+
+    bool verRegistrar;
+    CobranzaCrearDto nuevo = new();
+    int porcentaje = 40;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { clientes = await Api.ClientesAsync(incluirBajas: true); } catch (ApiException ex) { error = ex.Message; }
+        await Cargar();
+    }
+
+    async Task Cargar()
+    {
+        try { lista = await Api.CobranzasAsync(desde, hasta, idCliente == 0 ? null : idCliente); }
+        catch (ApiException ex) { error = ex.Message; lista = new(); }
+    }
+
+    async Task AbrirRegistrar()
+    {
+        error = null;
+        try
+        {
+            instaladas = await Api.MaquinasAsync(estado: EstadoMaquina.Instalada);
+            nuevo = new CobranzaCrearDto();
+            verRegistrar = true;
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+
+    void CalcularComercio() => nuevo.MontoComercio = Math.Round(nuevo.MontoRecaudado * porcentaje / 100m, 0);
+
+    async Task Registrar()
+    {
+        try
+        {
+            var c = await Api.RegistrarCobranzaAsync(nuevo);
+            verRegistrar = false;
+            ok = $"Cobro de {Textos.Plata(c.MontoRecaudado)} registrado en {c.Maquina} ({c.Cliente}).";
+            await Cargar();
+        }
+        catch (ApiException ex) { verRegistrar = false; error = ex.Message; }
+    }
+
+    async Task ExportarPdf()
+    {
+        try
+        {
+            var pdf = await Api.ReportePdfAsync("cobranzas", desde, hasta);
+            await Navegador.DescargarAsync($"cobranzas-{DateTime.Now:yyyyMMdd}.pdf", pdf);
+        }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+}

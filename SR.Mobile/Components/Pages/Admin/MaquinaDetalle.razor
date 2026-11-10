@@ -1,0 +1,88 @@
+@page "/admin/maquinas/{Id:int}"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject SrApi Api
+
+<a class="volver" href="admin/maquinas">‹ Máquinas</a>
+<Alerta @bind-Mensaje="error" />
+
+@if (d is null)
+{
+    <Cargando />
+}
+else
+{
+    var m = d.Maquina;
+    <div class="titulo">
+        <h1>@m.NumeroIdentificacion</h1>
+        <p>@m.Tipo · @m.Descripcion</p>
+    </div>
+
+    <div class="panel">
+        <div class="ficha">
+            <div><span>Estado</span><Chip Texto="@Textos.De(m.Estado)" Color="@Chip.De(m.Estado)" /></div>
+            <div><span>Alta</span><strong>@Textos.Fecha(m.FechaAlta)</strong></div>
+            <div><span>Ubicación</span><strong>@(m.ClienteActual ?? "Depósito")</strong></div>
+            <div><span>Localidad</span><strong>@(m.LocalidadActual ?? "-")</strong></div>
+            <div><span>Recaudado</span><strong>@Textos.Plata(d.TotalRecaudado)</strong></div>
+            <div><span>Mantenimiento</span><strong>@Textos.Plata(d.TotalMantenimiento)</strong></div>
+        </div>
+    </div>
+    <a class="btn sec" href="admin/maquinas/@Id/editar">Editar máquina</a>
+
+    <div class="pestanas" style="margin-top:1.4rem">
+        <button class="@(pestana == 0 ? "activa" : "")" @onclick="() => pestana = 0">Ubicaciones</button>
+        <button class="@(pestana == 1 ? "activa" : "")" @onclick="() => pestana = 1">Cobranzas</button>
+        <button class="@(pestana == 2 ? "activa" : "")" @onclick="() => pestana = 2">Mantenimientos</button>
+    </div>
+
+    <div class="lista">
+        @if (pestana == 0)
+        {
+            @if (d.Instalaciones.Count == 0) { <div class="vacio">Nunca fue instalada.</div> }
+            @foreach (var i in d.Instalaciones)
+            {
+                <div class="item @Chip.De(i.Estado)">
+                    <div class="cab"><strong>@i.Cliente</strong><Chip Texto="@Textos.De(i.Estado)" Color="@Chip.De(i.Estado)" /></div>
+                    <div class="linea">@i.Localidad</div>
+                    <div class="linea">Del @Textos.Fecha(i.FechaInstalacion) al @(i.FechaRetiroReal is null ? $"{Textos.Fecha(i.FechaRetiroProgramada)} (previsto)" : Textos.Fecha(i.FechaRetiroReal))</div>
+                </div>
+            }
+        }
+        else if (pestana == 1)
+        {
+            @if (d.Cobranzas.Count == 0) { <div class="vacio">Sin cobranzas.</div> }
+            @foreach (var c in d.Cobranzas)
+            {
+                <div class="item">
+                    <div class="cab"><strong>@Textos.Fecha(c.FechaCobro)</strong><span class="monto">@Textos.Plata(c.MontoRecaudado)</span></div>
+                    <div class="linea">@c.Cliente</div>
+                </div>
+            }
+        }
+        else
+        {
+            @if (d.Mantenimientos.Count == 0) { <div class="vacio">Sin mantenimientos.</div> }
+            @foreach (var x in d.Mantenimientos)
+            {
+                <div class="item @Chip.De(x.Estado)">
+                    <div class="cab"><strong>@Textos.Fecha(x.Fecha)</strong><Chip Texto="@Textos.De(x.Estado)" Color="@Chip.De(x.Estado)" /></div>
+                    <div class="linea">@x.Descripcion</div>
+                    <div class="linea">@Textos.De(x.TipoMantenimiento) · @Textos.Plata(x.Costo)</div>
+                </div>
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    MaquinaDetalleDto? d;
+    int pestana;
+    string? error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try { d = await Api.MaquinaAsync(Id); }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+}
